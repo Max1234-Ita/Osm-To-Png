@@ -1,0 +1,12 @@
+
+
+TILE AREA SELECTION
+
+1.  Center the map view around the place of interest. Optionally, you can run a Nominatim search
+    by clicking the 'Search' button .
+2.  Adjust the window size to enclose the entire area you want to download.
+3.  Set the desired zoom factor to be retrieved (it will not chenge the current map view zoom
+4.  The count of estimated number of tiles to download will automaticallly update.
+5.  Select the desired map style among the ones available. Please note that for other styles than Mapnik you will need
+    an API key from thunderforest.com (free plans available, allowing download of 150K tiles per mont)
+6.  Press OK to confirm the download parameters (area, style and zoom factor)
