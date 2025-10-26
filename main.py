@@ -1,4 +1,21 @@
 
+# TODO:
+#  - Set the tile preview box so that when the zoom is changed the tile zoom value in main window is updated accordingly.
+#  - Implement tilesets form OsmAnd map?
+#  - Fix the estimated tile number in the coord_picker_v2a form.
+#  - Adjust the size of the download monitor.
+#  - Do not show multiple instances of confirmation prompt
+#  ------------------------------------------------------------------
+# DONE:
+#  - Set the main window to show at the center of the display on launch.
+#  - Add tile count and program icon to the download monitor.
+#  - Force the DL Monitor to be foreground
+#  - Change the download text in the monitor, when paused it will be "Paused", otherwise it will show the progress
+#  - In the Download Monitor, intercept window closure ( [x] ) so that the window is closed gracefully instead of
+#    throwing exceptions.
+
+from pathlib import Path
+
 import coord_picker_v2a
 import globals
 import lat_lon_tileid
@@ -6,7 +23,6 @@ import inifile_access
 import fileaccess
 import png_from_osm_v2
 
-from pathlib import Path
 
 # -------------------------------------------------------------------------------------------------------------------
 appinfo = f'{globals.APPNAME} v.{globals.APPVERSION} - {globals.APPINFO}'
@@ -44,6 +60,7 @@ if user_selection:
 
     # Download the required tiles
     if filename:
+        ini.setvalue('tile_download', 'savedir', Path(filename).parent)
         min_xy = lat_lon_tileid.latlon_to_tile(user_selection[0][0], user_selection[0][1], user_selection[3])
         max_xy = lat_lon_tileid.latlon_to_tile(user_selection[1][0], user_selection[1][1], user_selection[3])
         tilezoom = user_selection[3]

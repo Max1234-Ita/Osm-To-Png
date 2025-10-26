@@ -76,17 +76,7 @@ class _MapViewerBBox(tk.Tk):
         self._prev_position = (0, 0)
         self.apikey = configuration.getvalue(TILE_DL_SECTION, "apikey")
 
-        # Language & Font
-        LANG = configuration.getvalue("general", "language", "ita")
-        self.lang_file = Path('lang') / f'ui_{LANG}.ini'
-        fontsize = int(configuration.getvalue("general", "fontsize", 14))
-        self.ui_configuration = IniManager(self.lang_file)
-        self.ui, self.settings_ui = load_ui_strings(LANG)
-        LANG_SHORT = self.ui_configuration.getvalue('info', 'lang')
-        self.ui_font = ("Arial", fontsize)
-        self.small_font = ("Arial", max(8, fontsize - 2))
-        self.title(self.ui["window_title"])
-        self.set_window_icon(self)
+        self.withdraw()     # Hide window during initialization
 
         # Restore initial form geometry
         win_w = configuration.getvalue(CONFIG_SECTION, "win_width")
@@ -98,6 +88,19 @@ class _MapViewerBBox(tk.Tk):
                 self.geometry("950x750")
         else:
             self.geometry("950x750")
+        self._center_window()
+
+        # Language & Font
+        LANG = configuration.getvalue("general", "language", "ita")
+        self.lang_file = Path('lang') / f'ui_{LANG}.ini'
+        fontsize = int(configuration.getvalue("general", "fontsize", 14))
+        self.ui_configuration = IniManager(self.lang_file)
+        self.ui, self.settings_ui = load_ui_strings(LANG)
+        LANG_SHORT = self.ui_configuration.getvalue('info', 'lang')
+        self.ui_font = ("Arial", fontsize)
+        self.small_font = ("Arial", max(8, fontsize - 2))
+        self.title(self.ui["window_title"])
+        self.set_window_icon(self)
 
         # ===== Top bar (settings & Help buttons) =====
         topbar = tk.Frame(self)
@@ -191,11 +194,6 @@ class _MapViewerBBox(tk.Tk):
                                  style="Custom.TButton")
         preview_btn.pack(side="left", padx=(10, 5))
 
-        # Help button ([ ? ])
-        help_btn = ttk.Button(search_frame, text="?", width=3, command=self.show_help, style="Custom.TButton")
-        help_btn.pack(side="left", padx=(10, 5))
-        self.bind("<F1>", lambda e: self.show_help())
-
         # OK/Cancel buttons
         btn_frame = tk.Frame(self)
         btn_frame.pack(fill="x", pady=8)
@@ -211,6 +209,8 @@ class _MapViewerBBox(tk.Tk):
                                     fg="gray30", bg="#f0f0f0", relief="flat", cursor="hand2")
         self.osm_overlay.place(relx=0.99, rely=0.99, anchor="se")
         self.osm_overlay.bind("<Button-1>", lambda e: webbrowser.open_new_tab("https://www.openstreetmap.org/copyright"))
+
+        self._center_window()
 
         # # ===== Scale meter bar =====
         # self.scale_bar = tk.Label(self.map_widget, text="", bg="#0000aa",
@@ -230,6 +230,19 @@ class _MapViewerBBox(tk.Tk):
             except Exception:
                 pass
         self.start_location_updates()
+        self.deiconify()  # Show the window (almost) ready to work
+
+
+    def _center_window(self):
+        """Place the window at the display's center."""
+        self.update_idletasks()  # Ensure that geometry is up to date
+        w = self.winfo_width()
+        h = self.winfo_height()
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+        x = (screen_w // 2) - (w // 2)
+        y = (screen_h // 2) - (h // 2)
+        self.geometry(f"{w}x{h}+{x}+{y}")
 
     def _save_settings(self, returninfo=None):
         if not returninfo:
@@ -341,19 +354,21 @@ class _MapViewerBBox(tk.Tk):
             except Exception:
                 pass
 
+        appath = Path(sys.argv[0]).parent
         self.help_window = tk.Toplevel(self)
         self.help_window.title(self.ui["help_title"])
         self.help_window.geometry("640x480")
         self.help_window.attributes("-topmost", True)
 
         # Load the Help file, based on selected language (if not found, use the English help)
-        help_file = self.ui.get("help_file", "help/help_eng.md")
+        hlp = self.ui.get("help_file", "help/help_eng.md")
+        help_file = Path(appath) / hlp
         content = f"<h3>File *'{Path(help_file).resolve()}'* not found.</h3>"
         try:
             with open(Path(help_file).resolve(), "r", encoding="utf-8") as f:
                 content = f.read()
                 # Convert markdown to HTML before displaying the contents
-                if help_file.lower().endswith(".md"):
+                if str(help_file).lower().endswith(".md"):
                     try:
                         html_content = markdown.markdown(
                             content,
@@ -432,13 +447,13 @@ class _MapViewerBBox(tk.Tk):
         Icon must be a .png or .ico file, in /resources dir.
         """
         try:
-            window.iconbitmap(Path('resources') / 'osm2png.ico')  # formato Windows
+            window.iconbitmap(Path('resources') / globals.APP_ICON_ICO)  # formato Windows
         except Exception:
             try:
-                icon = tk.PhotoImage(file=Path('resources') / "osm2png.png")
+                icon = tk.PhotoImage(file=Path('resources') / globals.APP_ICON_PNG)
                 window.iconphoto(False, icon)
             except Exception as e:
-                print(f"Impossibile impostare l'icona finestra: {e}")
+                print(f"Cannot set window icon: {e}")
 
     def init_map(self):
         # Initialize the map after loading; Set default Zoom & Tile Server
