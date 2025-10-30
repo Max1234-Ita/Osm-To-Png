@@ -1,3 +1,8 @@
+"""
+A small form for download supervision.
+Shows overall progress and allows to pause or abort the operation.
+"""
+
 import tkinter as tk
 from tkinter import ttk, messagebox
 from pathlib import Path

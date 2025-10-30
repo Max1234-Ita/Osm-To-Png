@@ -3,6 +3,7 @@
 #  - Implement tilesets from OsmAnd map?
 #  - Remove all the trailing dots, semicolons, etc. from the ui_xxx.ini files
 #  - Move the 'help_file' key from individual localized to config.ini
+#  - Implement scale bar in coord_picker_v2a
 #  --------------------------------------------------------------------------------------------------------------------
 # DONE:
 #  - coord_picker_v2a.load_ui_strings() -- Automatically detect the keys present in the specified section of the ini file
