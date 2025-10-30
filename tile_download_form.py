@@ -36,7 +36,7 @@ class TileDownloadWindow:
         self.window = tk.Toplevel(self.root)
         self.window.title(self.windowtitle)
         self.window.attributes("-topmost", True)
-        self.window.geometry("400x140")
+        self.window.geometry("360x140")
         self._set_window_icon(self.window)
         self.window.resizable(False, False)
         self.total_tiles = total_tiles
@@ -133,7 +133,7 @@ class TileDownloadWindow:
         self.btn_pause.config(text=new_text)
 
     def cancel_download(self):
-        """Conferma e imposta STOP_FLAG."""
+        """Confirm & set STOP_FLAG."""
         cancelquestion = self.ui.getvalue('tile_download', 'confirm_cancel')
         cancelconfirmed = self.ui.getvalue('tile_download', 'cancel_confirmed')
 

@@ -1,15 +1,18 @@
 
 # TODO:
-#  - Set the tile preview box so that when the zoom is changed the tile zoom value in main window is updated accordingly.
-#  - Implement tilesets form OsmAnd map?
-#  - Fix the estimated tile number in the coord_picker_v2a form.
-#  - Adjust the size of the download monitor.
-#  - Do not show multiple instances of confirmation prompt
-#  ------------------------------------------------------------------
+#  - Implement tilesets from OsmAnd map?
+#  - Remove all the trailing dots, semicolons, etc. from the ui_xxx.ini files
+#  - Move the 'help_file' key from individual localized to config.ini
+#  --------------------------------------------------------------------------------------------------------------------
 # DONE:
+#  - coord_picker_v2a.load_ui_strings() -- Automatically detect the keys present in the specified section of the ini file
 #  - Set the main window to show at the center of the display on launch.
+#  - Set the tile preview box so that when the zoom is changed the tile zoom value in main window is updated accordingly.
+#  - Fix the estimated tile number in the coord_picker_v2a form.
 #  - Add tile count and program icon to the download monitor.
 #  - Force the DL Monitor to be foreground
+#  - Do not show multiple instances of confirmation prompt
+#  - Adjust the size of the download monitor.
 #  - Change the download text in the monitor, when paused it will be "Paused", otherwise it will show the progress
 #  - In the Download Monitor, intercept window closure ( [x] ) so that the window is closed gracefully instead of
 #    throwing exceptions.
@@ -42,6 +45,8 @@ user_selection = coord_picker_v2a.select_bbox()
     #   [3]             ->  requested map zoom
     #   [4], [5] etc.   ->  other information not used for download
 
+xx = ini.getkeys('general')
+
 if user_selection:
     # Ask for the output file name, through a selection window
     language = ini.getvalue('general', 'language')
@@ -55,7 +60,7 @@ if user_selection:
     filename = fileaccess.select_output_file(
         initial_dir=savedir,
         default_extension='.png',
-        filetypes=filetypes, prompt=prompt
+        filetypes=filetypes, prompt=prompt,
     )
 
     # Download the required tiles

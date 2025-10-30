@@ -24,3 +24,9 @@ class IniManager:
         self.config.set(section, key, str(value))
         with open(self.filename, "w", encoding="utf-8") as f:
             self.config.write(f)
+
+    def getkeys(self, section):
+        keys = None
+        if self.config.has_section(section):
+            keys = list(dict(self.config[section]).keys())
+        return keys

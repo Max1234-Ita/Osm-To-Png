@@ -11,6 +11,7 @@ from tkinter import ttk, messagebox
 from tkintermapview import TkinterMapView
 
 import globals
+import lat_lon_tileid
 from settings_form import SettingsForm
 from inifile_access import IniManager
 
@@ -45,19 +46,23 @@ def load_ui_strings(lang_code="ita"):
         print(f"Error while loading file '{ui_file.name}' ")
         sys.exit(-99)
 
-    keys = [
-        "window_title", "loading_message", "style_label", "zoom_label",
-        "zoom_map_label", "tiles_label", "search_label", "search_button",
-        "ok_button", "cancel_button", "osm_attribution", "select_location_title",
-        "select_location_prompt", "select_button", "not_found_message",
-        "error_message", "help_button", "help_title", "help_file",
-        "preview_button"
-    ]
-    setting_keys = [
-        'title', 'font_label', 'apikey_label', 'email_label', 'language_label',
-        'ok_button', 'cancel_button', 'restart_message', 'apikey_tooltip',
-        'osmmail_tooltip',
-    ]
+    # keys = [
+    #     "window_title", "loading_message", "style_label", "zoom_label",
+    #     "zoom_map_label", "tiles_label", "search_label", "search_button",
+    #     "ok_button", "cancel_button", "osm_attribution", "select_location_title",
+    #     "select_location_prompt", "select_button", "not_found_message",
+    #     "error_message", "he\lp_button", "help_title", "help_file",
+    #     "preview_button"
+    # ]
+    # setting_keys = [
+    #     'title', 'font_label', 'apikey_label', 'email_label', 'language_label',
+    #     'ok_button', 'cancel_button', 'restart_message', 'apikey_tooltip',
+    #     'osmmail_tooltip',
+    # ]
+
+    keys = ui_config.getkeys('user_interface')
+    setting_keys = ui_config.getkeys('settings_form')
+
     ui = {k: ui_config.getvalue("user_interface", k, f"[{k}]") for k in keys}
     setting_ui = {k: ui_config.getvalue("settings_form", k, f"[{k}]") for k in setting_keys}
     return ui, setting_ui
@@ -141,7 +146,7 @@ class _MapViewerBBox(tk.Tk):
         # User Controls (Style, Tile zoom, etc.
         controls_frame = tk.Frame(self)
         controls_frame.pack(fill="x", pady=4, padx=10)
-        tk.Label(controls_frame, text=self.ui["style_label"], font=self.ui_font).pack(side="left")
+        tk.Label(controls_frame, text=self.ui["style_label":], font=self.ui_font).pack(side="left")
 
         # Tile servers (available for selection in dropdown menu)
         self.tile_servers = {
@@ -164,21 +169,23 @@ class _MapViewerBBox(tk.Tk):
         style_menu.configure(style="Custom.TMenubutton")
 
         # Tile Zoom entry (with buttons); Retrieve initial values from config.ini
-        tk.Label(controls_frame, text=self.ui["zoom_label"], font=self.ui_font).pack(side="left", padx=(20, 0))
+        tk.Label(controls_frame, text=f'{self.ui["zoom_label"]}:', font=self.ui_font).pack(side="left", padx=(20, 0))
         self.zoom_entry = ttk.Entry(controls_frame, width=5, font=self.ui_font, justify="center")
-        tilezoom=configuration.getvalue('tile_download', 'zoom')
-        self.zoom_entry.insert(0, tilezoom)
+        self.tilezoom = configuration.getvalue('tile_download', 'zoom')
+        self.zoom_entry.insert(0, self.tilezoom)
         self.zoom_entry.pack(side="left", padx=5)
         ttk.Button(controls_frame, text="-", width=3, command=self.decrement_zoom, style="Custom.TButton").pack(side="left", padx=2)
         ttk.Button(controls_frame, text="+", width=3, command=self.increment_zoom, style="Custom.TButton").pack(side="left", padx=2)
-        self.tiles_label = tk.Label(controls_frame, text=f"{self.ui['tiles_label']} n/a", font=self.ui_font)
+        self.tiles_label = tk.Label(controls_frame, text=f"{self.ui['tiles_label']}: n/a", font=self.ui_font)
         self.tiles_label.pack(side="left", padx=(15, 10))
+        # self.tile_zoom_var = tk.IntVar(value=15)  # Default tile zoom
+        # self.zoom_entry.config(textvariable=self.tile_zoom_var, justify="center")
 
         # Search, Preview & Help
         search_frame = tk.Frame(self)
         search_frame.pack(fill="x", pady=4, padx=10)
 
-        tk.Label(search_frame, text=self.ui["search_label"], font=self.ui_font).pack(side="left")
+        tk.Label(search_frame, text=f'{self.ui["search_label"]}:', font=self.ui_font).pack(side="left")
         self.search_entry = ttk.Entry(search_frame, width=30, font=self.ui_font)
         self.search_entry.pack(side="left", padx=5)
         self.search_entry.bind("<Return>", lambda e: self.search_location())
@@ -201,7 +208,7 @@ class _MapViewerBBox(tk.Tk):
         ttk.Button(btn_frame, text=self.ui["cancel_button"], command=self.on_cancel, width=12, style="Custom.TButton").pack(side="right")
 
         # Overlay labels (current map zoom and attribution)
-        self.zoom_overlay = tk.Label(self.map_widget, text=f"{self.ui['zoom_map_label']} 15",
+        self.zoom_overlay = tk.Label(self.map_widget, text=f"{self.ui['zoom_map_label']}: 15",
                                      font=self.small_font, bg="#f0f0f0", anchor="e", relief="flat")
         self.zoom_overlay.place(relx=0.99, rely=0.01, anchor="ne")
         self.osm_overlay = tk.Label(self.map_widget, text=self.ui["osm_attribution"],
@@ -290,54 +297,165 @@ class _MapViewerBBox(tk.Tk):
             ]
         return return_info
 
+    # # ========== Preview ==========
+    # def show_preview(self):
+    #     """Opens a minimap showing a preview of the tile details set in the Tile Zoom control."""
+    #     def _on_close():
+    #         # Destroy the minimap viewer if the Close button is clicked
+    #         self.preview_window = None
+    #         self.tile_preview_minimap = None
+    #         popup.destroy()
+    #
+    #     try:
+    #         lat, lon = self.map_widget.get_position()
+    #         zoom_target = int(self.zoom_entry.get() or 15)
+    #         style_name = self.selected_style.get()
+    #         tile_server = self.tile_servers.get(style_name, list(self.tile_servers.values())[0])
+    #
+    #         if self.preview_window and tk.Toplevel.winfo_exists(self.preview_window):
+    #             # Update the minimap, if it already exists
+    #             self.tile_preview_minimap.set_tile_server(tile_server)
+    #             self.tile_preview_minimap.set_position(lat, lon)
+    #             self.tile_preview_minimap.set_zoom(zoom_target)
+    #             return
+    #         else:
+    #             # Create a new popup (always in foreground)
+    #             main_w, main_h = self.winfo_width(), self.winfo_height()
+    #             preview_w, preview_h = max(400, main_w // 2), max(300, main_h // 2)
+    #
+    #             popup = tk.Toplevel(self)
+    #             popup.title(self.ui.get("preview_button", "Preview"))
+    #             popup.geometry(f"{preview_w}x{preview_h}")
+    #             popup.attributes("-topmost", True)
+    #             popup.lift()
+    #             popup.focus_force()
+    #             # -----------------------------------------------------
+    #
+    #             self.preview_window = popup
+    #
+    #             mini_map = TkinterMapView(popup, width=preview_w, height=preview_h, corner_radius=0)
+    #             mini_map.pack(fill="both", expand=True)
+    #             mini_map.set_tile_server(tile_server)
+    #             mini_map.set_position(lat, lon)
+    #             mini_map.set_zoom(zoom_target)
+    #             self.tile_preview_minimap = mini_map
+    #
+    #             # Set the reference to be destroyed when minimap is closed
+    #             popup.protocol("WM_DELETE_WINDOW", _on_close)
+    #
+    #     except Exception as e:
+    #         messagebox.showerror("Errore", f"Impossibile mostrare l'anteprima:\n{e}")
+    # ========== Preview ==========
+    # ========== Preview ==========
     # ========== Preview ==========
     def show_preview(self):
         """Opens a minimap showing a preview of the tile details set in the Tile Zoom control."""
+
         def _on_close():
-            # Destroy the minimap viewer if the Close button is clicked
+            """Destroy the minimap viewer if the Close button is clicked"""
             self.preview_window = None
             self.tile_preview_minimap = None
+            self.preview_zoom_label = None
             popup.destroy()
 
         try:
+            # === Stato iniziale ===
             lat, lon = self.map_widget.get_position()
             zoom_target = int(self.zoom_entry.get() or 15)
             style_name = self.selected_style.get()
             tile_server = self.tile_servers.get(style_name, list(self.tile_servers.values())[0])
 
+            # === Se la finestra di anteprima esiste già, aggiorna ===
             if self.preview_window and tk.Toplevel.winfo_exists(self.preview_window):
-                # Update the minimap, if it already exists
                 self.tile_preview_minimap.set_tile_server(tile_server)
                 self.tile_preview_minimap.set_position(lat, lon)
                 self.tile_preview_minimap.set_zoom(zoom_target)
+                if hasattr(self, "preview_zoom_label") and self.preview_zoom_label:
+                    self.preview_zoom_label.config(text=f"Zoom: {zoom_target}")
                 return
-            else:
-                # Create a new popup (always in foreground)
-                main_w, main_h = self.winfo_width(), self.winfo_height()
-                preview_w, preview_h = max(400, main_w // 2), max(300, main_h // 2)
 
-                popup = tk.Toplevel(self)
-                popup.title(self.ui.get("preview_button", "Preview"))
-                popup.geometry(f"{preview_w}x{preview_h}")
-                popup.attributes("-topmost", True)
-                popup.lift()
-                popup.focus_force()
-                # -----------------------------------------------------
+            # === Crea nuova finestra di anteprima ===
+            main_w, main_h = self.winfo_width(), self.winfo_height()
+            preview_w, preview_h = max(400, main_w // 2), max(300, main_h // 2)
 
-                self.preview_window = popup
+            popup = tk.Toplevel(self)
+            popup.title(self.ui.get("preview_button", "Preview"))
+            popup.geometry(f"{preview_w}x{preview_h}")
+            popup.attributes("-topmost", True)
+            popup.lift()
+            popup.focus_force()
+            self.preview_window = popup
 
-                mini_map = TkinterMapView(popup, width=preview_w, height=preview_h, corner_radius=0)
-                mini_map.pack(fill="both", expand=True)
-                mini_map.set_tile_server(tile_server)
-                mini_map.set_position(lat, lon)
-                mini_map.set_zoom(zoom_target)
-                self.tile_preview_minimap = mini_map
+            # === Widget mappa ===
+            mini_map = TkinterMapView(popup, width=preview_w, height=preview_h, corner_radius=0)
+            mini_map.pack(fill="both", expand=True)
+            mini_map.set_tile_server(tile_server)
+            mini_map.set_position(lat, lon)
+            mini_map.set_zoom(zoom_target)
+            self.tile_preview_minimap = mini_map
 
-                # Set the reference to be destroyed when minimap is closed
-                popup.protocol("WM_DELETE_WINDOW", _on_close)
+            # === Label Zoom (angolo in alto a destra) ===
+            font_family = self.ui_font[0]
+            font_size = max(8, self.ui_font[1] - 2)
+            self.preview_zoom_label = tk.Label(
+                mini_map,
+                text=f"Zoom: {zoom_target}",
+                bg="#333333",
+                fg="white",
+                font=(font_family, font_size),
+                padx=6, pady=2,
+                relief="ridge", borderwidth=1
+            )
+            self.preview_zoom_label.place(relx=0.98, rely=0.02, anchor="ne")
+            self.preview_zoom_label.lift()
+
+            # === MONITOR ZOOM (polling periodico) ===
+            self._preview_last_zoom = zoom_target
+
+            def poll_preview_zoom():
+                """Controlla se lo zoom della preview è cambiato"""
+                if not (self.preview_window and tk.Toplevel.winfo_exists(self.preview_window)):
+                    return  # esci se la finestra non esiste più
+
+                try:
+                    current_zoom = round(mini_map.zoom)
+                    if current_zoom != getattr(self, "_preview_last_zoom", None):
+                        self._preview_last_zoom = current_zoom
+                        # aggiorna la label
+                        if getattr(self, "preview_zoom_label", None):
+                            self.preview_zoom_label.config(text=f"Zoom: {current_zoom}")
+                        # aggiorna anche il campo zoom principale
+                        self.zoom_entry.delete(0, "end")
+                        self.zoom_entry.insert(0, str(current_zoom))
+                except Exception:
+                    pass
+
+                # ripeti ogni 250 ms
+                self.after(250, poll_preview_zoom)
+
+            poll_preview_zoom()
+
+            # === Se lo zoom della finestra principale cambia, aggiorna la preview ===
+            def on_main_zoom_change(event=None):
+                try:
+                    new_zoom = int(self.zoom_entry.get() or 15)
+                    if abs(mini_map.zoom - new_zoom) >= 1:
+                        mini_map.set_zoom(new_zoom)
+                        if getattr(self, "preview_zoom_label", None):
+                            self.preview_zoom_label.config(text=f"Zoom: {new_zoom}")
+                        self._preview_last_zoom = new_zoom
+                except Exception:
+                    pass
+
+            self.zoom_entry.bind("<FocusOut>", on_main_zoom_change)
+
+            # === Chiudi finestra ===
+            popup.protocol("WM_DELETE_WINDOW", _on_close)
 
         except Exception as e:
-            messagebox.showerror("Errore", f"Impossibile mostrare l'anteprima:\n{e}")
+            self.previewerror = "xx"
+            messagebox.showerror("Errore", f"{self.previewerror}:\n{e}")
+
 
     # ----- Metodi -----
     def show_help(self):
@@ -504,6 +622,8 @@ class _MapViewerBBox(tk.Tk):
         if getattr(self, "preview_window", None) and tk.Toplevel.winfo_exists(self.preview_window):
             self.show_preview()
 
+
+
     def increment_zoom(self):
         # Increment zoom of downloaded tiles by 1 when the [ + ] button is clicked
         try:
@@ -530,7 +650,7 @@ class _MapViewerBBox(tk.Tk):
 
     def update_zoom_label(self):
         zoom_mappa = int(getattr(self.map_widget, "zoom", 15))
-        self.zoom_overlay.config(text=f"{self.ui['zoom_map_label']} {zoom_mappa}")
+        self.zoom_overlay.config(text=f"{self.ui['zoom_map_label']}: {zoom_mappa}")
         # self.update_scale_bar()
         self.after(200, self.update_zoom_label)
 
@@ -571,15 +691,19 @@ class _MapViewerBBox(tk.Tk):
             w = max(1, self.map_widget.winfo_width())
             h = max(1, self.map_widget.winfo_height())
             # Number of horizontal/vertical tiles @ zoom_target factor
+            info = self._get_return_info()
+            min_xy = lat_lon_tileid.latlon_to_tile(info[0][0], info[0][1], info[3])
+            max_xy = lat_lon_tileid.latlon_to_tile(info[1][0], info[1][1], info[3])
+
             width_tiles = (w / 256.0) * (2 ** (zoom_target - zoom_current))     # TODO - adapt to support 512x512 tiles
             height_tiles = (h / 256.0) * (2 ** (zoom_target - zoom_current))
-            total_tiles = math.ceil(abs(width_tiles) * abs(height_tiles))
-
+            # total_tiles = math.ceil(abs(width_tiles) * abs(height_tiles))
+            total_tiles = (max_xy[0] - min_xy[0] + 1) * (max_xy[1] - min_xy[1] + 1)
             # Estimate total download size (average tile size is specified in globals.py)
             size_mb = (total_tiles * globals.tilesize_kb) / 1024.0
-            self.tiles_label.config(text=f"{self.ui['tiles_label']} {total_tiles} (~{size_mb:.1f} MB)")
+            self.tiles_label.config(text=f"{self.ui['tiles_label']}: {total_tiles} (~{size_mb:.1f} MB)")
         except Exception:
-            self.tiles_label.config(text=f"{self.ui['tiles_label']} n/a")
+            self.tiles_label.config(text=f"{self.ui['tiles_label']}: n/a")
         finally:
             self.after(1000, self.update_tile_estimate)
 
@@ -602,7 +726,7 @@ class _MapViewerBBox(tk.Tk):
             else:
                 self.select_from_multiple(data)
         except Exception as e:
-            messagebox.showerror(self.ui["search_button"], f"{self.ui['error_message']} {e}")
+            messagebox.showerror(self.ui["search_button"], f"{self.ui['error_message']}: {e}")
 
     def open_settings(self):
         """Open the Settings form"""
@@ -620,7 +744,7 @@ class _MapViewerBBox(tk.Tk):
         popup.title(self.ui["select_location_title"])
         popup.geometry("480x320")
         popup.minsize(480, 320)
-        tk.Label(popup, text=self.ui["select_location_prompt"], font=self.ui_font).pack(pady=5)
+        tk.Label(popup, text=f'{self.ui["select_location_prompt"]}:', font=self.ui_font).pack(pady=5)
 
         listbox = tk.Listbox(popup, font=self.ui_font)
         for it in results:
