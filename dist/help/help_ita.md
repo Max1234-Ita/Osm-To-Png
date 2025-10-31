@@ -22,7 +22,10 @@ Lo script originale, scritto per Python v.2, è stato adattato per funzionare in
 
 ## Impostazione del download delle mattonelle
 - Selezionare lo stile di mappa desiderato tra quelli disponibili.
->	**ATTENZIONE** - *Le mattonelle degli stili diversi da Mapnik (OSM) sono fornite dal servizio Thunderforest.com; per poterle visualizzare e scaricare occorre inserire una "API Key", ottenibile registrandosi sul sito https://www.thunderforest.com; il piano gratuito consente di scaricare 150000 mattonelle ogni mese.* 
+
+>	**ATTENZIONE** -  Per poter scaricare le tessere dello stile *Mapnik (OSM)* occorre specificare un indirizzo email nel menu *Impostazioni*:  è possibile utilizzarne uno qualunque, ma sarebbe bene iscriversi al progetto OpenStreetMap su *https://www.openstreetmap.org* con un indirizzo valido e specificare quello all'interno del programma.  
+>
+>*Le mattonelle degli stili diversi da Mapnik (OSM) sono invece fornite dal servizio Thunderforest.com; per poterle visualizzare e scaricare occorre inserire una "API Key", ottenibile registrandosi sul sito https://www.thunderforest.com; il piano gratuito consente di scaricare 150000 immagini ogni mese.* 
 - Utilizzare il controllo *Zoom tile* per impostare il fattore di zoom desiderato per le mattonelle scaricate (questo controllo NON modifica lo zoom della mappa visualizzata nella finestra); sulla destra, è possibile leggere il numero di mattonelle da scaricare per coprire l'intera area, ed una stima del loro peso complessivo in Megabyte.
 
 - Fare click sul pulsante *Anteprima tile* per visualizzare in un pop-up l'effettivo livello di dettaglio impostato per il download. 
@@ -45,13 +48,13 @@ Nella schermata di selezione dell'area da scaricare, fare click sul pulsante [�
 
 Il menu permette di impostare:
 - **Dimensione del font** utilizzato nella finestra del programma
+
 - **Api Key**: per poter ottenere le mattonelle degli stili forniti da thunderforest.com (Cyclemap, Transport, ecc.).  
 Per ottenere una API Key è sufficiente visitare il sito *https://www.thunderforest.com*, registrare un nuovo account (occorre fornire un indirizzo email valido) ed eseguire l'accesso. 
 Il piano gratuito offerto da Thunderforest.com permette di scaricare fino a 150000 mattonelle al mese, valore che dovrebbe essere più che sufficiente per un utilizzo non intensivo del servizio: ad esempio, per ottenere l'intera area di Milano a zoom 17 (nel quale sono leggibili i nomi di tutte le strade) occorre scaricare circa 11000 tessere (circa il 7% dell'intera quota)
-- **Email OpenStreetMap**: è richiesta per poter scaricare le mattonelle dello stile Mapnik, nativo del progetto OpenStreetMap. E' possibile indicare un qualunque indirizzo email, ma sarebbe bene iscriversi al progetto su *https://www.openstreetmap.org* con un indirizzo valido e specificare quello all'interno del programma.    
 
-	OpenstreetMap non impone alcun limite al numero di tile scaricabili, ma raccomanda agli utenti di "non inviare un numero eccessivo di richieste"(anche questo concetto è abbastanza generico): per utilizzi intensivi sarebbe più consigliato utilizzare un tile server locale. 
-Per scelta progettuale, il programma si interfaccia con il server OSM, ma invia  le proprie richieste a cadenza rallentata, nell'intento di non sovraccaricarlo.
+- **Email OpenStreetMap**: è richiesta per poter scaricare le mattonelle dello stile Mapnik, nativo del progetto OpenStreetMap.    
+
 
 - **Lingua dell'interfaccia**: Selezionare la lingua desiderata tra quelle disponibili.
 

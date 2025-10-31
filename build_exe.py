@@ -59,7 +59,7 @@ sleep(2)
 
 cmd = (f'{pyinst} '
        f'--onefile '
-       # '--windowed '
+       '--windowed '
        f'--name {exename} '
        # f'--hidden-import "requests" '
        # f'--hidden-import "markdown" '
@@ -73,7 +73,7 @@ subprocess.run(cmd)
 
 # ---------------------------------------------------------------------
 # Main files that are present in the program directory.
-items = ['config.ini']
+items = ['config.ini.template']
 destpath = Path('dist')
 
 dp = destpath.resolve()
@@ -83,7 +83,7 @@ for src in items:
     srcpath = Path(src).resolve()
     sleep(0.5)
     # copyfile(srcpath, destpath)
-    copy(src, dp / Path(srcpath).name)
+    copy(src, dp / str(Path(srcpath).name).replace('.template',''))
 
 
 # ---------------------------------------------------------------------

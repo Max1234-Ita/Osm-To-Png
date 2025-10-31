@@ -18,10 +18,11 @@ Adjust the map zoom with the [+] and [-] buttons in the upper left corner of the
 
 > **IMPORTANT** - *The bbox is defined by the window borders, so it will enclose the entire displayed area; The current map zoom DOES NOT affect the zoom factor of the downloaded tiles; it must be set manually (see below).*
 
-## Setting tile download
+## Setting the tile download
 Select the desired map style among those available from the *Map style* dropdown list.
 
-> **ATTENTION** - *The styles other than "Mapnik (OSM)" are provided by the Thunderforest service; to view and download them you need to enter an "API Key", which can be obtained by registering on the site https://www.thunderforest.com; the free plan allows you to download 150,000 tiles every month.*
+> **ATTENTION** - An email address must be provided in the *Settings* menu in order to obtain the Mapnik (OSM) imagery.  You can use any one, but it's a good idea to sign up to the project at *https://www.openstreetmap.org* with a valid email address and use that one in the program too.
+>*The styles other than "Mapnik (OSM)" are provided by the Thunderforest service; to view and download them you need to enter an "API Key", which can be obtained by registering on the site https://www.thunderforest.com; the free plan allows you to download 150,000 tiles every month.*
 
 Use the *Tile zoom* control to set the desired zoom factor for the downloaded tiles (this control DOES NOT change the zoom of the map displayed in the window); on the right, you can read the number of tiles to download to cover the entire area, and an estimate of their overall weight in Megabytes.
 
@@ -38,7 +39,6 @@ Select the directory and the output file name (extension must be *.png*); click 
 > **ATTENTION** - *This operation uses online services and may take a long time. The OpenStreetMap and Thunderforest servers are not designed to handle massive operations: the program tries to behave respectfully and sends its requests at a quite slow rate, with frequent pauses.*
 
 
-
 ## Other program settings
 In the area selection screen, click the [⚙️] button, in the top right corner of the window.
 
@@ -48,9 +48,8 @@ The menu allows to set:
 To obtain an API Key, just visit the *https://www.thunderforest.com* web page,  sign up for a new account (a valid email address in required), then log in. 
 The Free plan offered by Thunderforest.com allows downloading up to 150,000 tiles per month. The amount should be fine for non-intensive use of the service: for example, to obtain the entire area of Milan (Italy) at zoom 17 (where all the street names are visible) about 11,000 tiles are needed (~7% of the entire quota)
 
-**OpenStreetMap email**: required to obtain the Mapnik tiles, native to the OpenStreetMap project. Any email address can be used, but it's a good idea to sign up to the project at *https://www.openstreetmap.org* with a valid email address and use that in the program.    
-OpenstreetMap doesn't set any limit to the number of downloadable tiles, but recommends the users "not to send an excessive number of requests" (also aquite generic concept): for intensive use, using a local tile server is more recommended. 
-By design, the program interfaces with the OSM public server, sending its requests at a slow pace, in order not to overload it.
+**OpenStreetMap email**: required to obtain the Mapnik tiles, native to the OpenStreetMap project.     
+
 
 **Interface language**: Select the desired language from those available.
 

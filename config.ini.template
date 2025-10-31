@@ -9,8 +9,8 @@ win_width = 889
 win_height = 943
 
 [tile_download]
-osm_email = max1234ita@gmail.com
-apikey = bf4ece5830bd46eabfc8ca6af800d7fe
+osm_email = Your OpenStreetMap email
+apikey = Get your API Key at www.thunderforest.com
 zoom = 18
 style = Mapnik (OSM)
 savedir = T:\

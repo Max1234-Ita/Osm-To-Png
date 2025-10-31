@@ -1,11 +1,14 @@
 
 # TODO:
 #  - Implement tilesets from OsmAnd map?
-#  - Remove all the trailing dots, semicolons, etc. from the ui_xxx.ini files
 #  - Move the 'help_file' key from individual localized to config.ini
 #  - Implement scale bar in coord_picker_v2a
+#  - BUG - Changing the UI language doesn't work
+#  - BUG - Help window is modal, make it Nonmodal so that the user can follow
+#    the instructions and operate with the other windows.
 #  --------------------------------------------------------------------------------------------------------------------
 # DONE:
+#  - Remove all the trailing dots, semicolons, etc. from the ui_xxx.ini files
 #  - coord_picker_v2a.load_ui_strings() -- Automatically detect the keys present in the specified section of the ini file
 #  - Set the main window to show at the center of the display on launch.
 #  - Set the tile preview box so that when the zoom is changed the tile zoom value in main window is updated accordingly.

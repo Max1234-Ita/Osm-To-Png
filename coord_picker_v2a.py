@@ -126,7 +126,7 @@ class _MapViewerBBox(tk.Tk):
         # User Controls (Style, Tile zoom, etc.
         controls_frame = tk.Frame(self)
         controls_frame.pack(fill="x", pady=4, padx=10)
-        tk.Label(controls_frame, text=self.ui["style_label":], font=self.ui_font).pack(side="left")
+        tk.Label(controls_frame, text=f'{self.ui["style_label"]}:', font=self.ui_font).pack(side="left")
 
         # Tile servers (available for selection in dropdown menu)
         self.tile_servers = {
@@ -300,7 +300,7 @@ class _MapViewerBBox(tk.Tk):
                 self.tile_preview_minimap.set_position(lat, lon)
                 self.tile_preview_minimap.set_zoom(zoom_target)
                 if hasattr(self, "preview_zoom_label") and self.preview_zoom_label:
-                    self.preview_zoom_label.config(text=f"Zoom: {zoom_target}")
+                    self.preview_zoom_label.config(text=f"Tile zoom: {zoom_target}")
                 return
 
             #  Create new
@@ -328,7 +328,7 @@ class _MapViewerBBox(tk.Tk):
             font_size = max(8, self.ui_font[1] - 2)
             self.preview_zoom_label = tk.Label(
                 mini_map,
-                text=f"Zoom: {zoom_target}",
+                text=f"Tile zoom: {zoom_target}",
                 bg="#333333",
                 fg="white",
                 font=(font_family, font_size),
