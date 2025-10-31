@@ -1,20 +1,20 @@
 
 # Global variables
 
-# ============================
+# ----------------
 # Application info
-# ============================
+# ----------------
 APPVERSION = '2.1.1'
 APPNAME = 'OSM to PNG'
-APPINFO = 'By Massimo Mula, 2025'
+APPINFO = 'By M. Mula, 2025'
 
 APP_INFOSTRING = f'{APPNAME} v.{APPVERSION} {APPINFO}'
 APP_ICON_ICO = 'osm2png.ico'
 APP_ICON_PNG = 'osm2png.png'
 
-# ============================
+# --------------------
 # Available map styles
-# ============================
+# --------------------
 
 
 map_styles = {

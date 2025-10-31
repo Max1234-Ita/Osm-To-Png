@@ -1,9 +1,10 @@
 
-# This script will build the distribution package od Generatore di Persona Farlocca
+# This script will build the distribution package of OSM 2 PNG
 # The zip file will contain:
-#   SAFe2xl.exe     --> Main executable
-#   resources   --> Directory with important files used by the program
-#   data        --> Directory containing additional data;
+#   OsmToPng.exe    --> The main executable
+#   resources       --> Directory with important files used by the program
+#   help            --> Directory containing the Help files;
+#   lang            --> Directory containing the Language files for UI localixìzation
 #
 # The script is optimized to run on a Windows computer, some adaptation might be
 # needed to run on Linux.
@@ -13,7 +14,7 @@ import subprocess
 import sys
 from time import sleep
 from pathlib import Path
-from shutil import copytree, rmtree     # , copyfile
+from shutil import copytree, rmtree, copy
 
 sitepackages = r".venv\Lib\site-packages"
 pyinstaller = r".venv\Scripts\pyinstaller.exe"
@@ -58,7 +59,7 @@ sleep(2)
 
 cmd = (f'{pyinst} '
        f'--onefile '
-       '--windowed '
+       # '--windowed '
        f'--name {exename} '
        # f'--hidden-import "requests" '
        # f'--hidden-import "markdown" '
@@ -72,15 +73,18 @@ subprocess.run(cmd)
 
 # ---------------------------------------------------------------------
 # Main files that are present in the program directory.
-# items = ['config.ini']
-# destpath = Path('dist')
-#
-# dp = destpath.resolve()
-# print(f" -> Copying...")
-# for src in items:
-#     print(f"      {src}")
-#     sleep(0.5)
-#     copyfile(src, destpath)
+items = ['config.ini']
+destpath = Path('dist')
+
+dp = destpath.resolve()
+for src in items:
+    print(f" -> Copying to {dp}")
+    print(f"      {src}")
+    srcpath = Path(src).resolve()
+    sleep(0.5)
+    # copyfile(srcpath, destpath)
+    copy(src, dp / Path(srcpath).name)
+
 
 # ---------------------------------------------------------------------
 # Resource files that are required by the program to work.
