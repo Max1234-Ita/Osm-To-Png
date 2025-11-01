@@ -14,6 +14,7 @@ import globals
 import lat_lon_tileid
 from settings_form import SettingsForm
 from inifile_access import IniManager
+from help_window import HelpWindow
 
 
 LANG = 'ita'
@@ -60,8 +61,14 @@ class _MapViewerBBox(tk.Tk):
         self.help_window = None
         self._prev_position = (0, 0)
         self.apikey = configuration.getvalue(TILE_DL_SECTION, "apikey")
+        self.first_run = configuration.getvalue('tile_download', 'savedir') == ''
 
         self.withdraw()     # Hide window during initialization
+
+        # self.grid_rowconfigure(1, weight=1)  # la mappa si espande
+        self.grid_rowconfigure(4, minsize=60)  # altezza minima per i pulsanti
+        self.grid_columnconfigure(0, weight=1)
+        self.minsize(800, 500)  # altezza minima della finestra
 
         # Restore initial form geometry
         win_w = configuration.getvalue(CONFIG_SECTION, "win_width")
@@ -87,13 +94,17 @@ class _MapViewerBBox(tk.Tk):
         self.title(self.ui["window_title"])
         self.set_window_icon(self)
 
-        #  Top bar (settings & Help buttons) 
+        #  Top bar (settings & Help buttons)
         topbar = tk.Frame(self)
-        topbar.pack(fill="x", anchor="ne", padx=10, pady=(5, 2))
+        topbar.grid(row=0, column=0, sticky="ew", padx=10, pady=(5, 2))
 
         # Current location label (to the left, on top bar)
         self.location_label = ttk.Label(topbar, text="📍 ...", anchor="w")
         self.location_label.pack(side="left", padx=(5, 0))
+
+        self.grid_rowconfigure(1, weight=1)  # la mappa si espande
+        self.grid_columnconfigure(0, weight=1)
+        self.minsize(950, 650)  # altezza minima della finestra
 
         # Help button (text == "?")
         help_btn = ttk.Button(topbar, text="?", width=3, command=self.show_help)
@@ -107,25 +118,24 @@ class _MapViewerBBox(tk.Tk):
         # Map Widget
         self.map_widget = TkinterMapView(
             self,
-            width=950,
-            height=650,
             corner_radius=0,
-            highlightthickness = 1,
-            highlightbackground = "#22dd22",
+            highlightthickness=1,
+            highlightbackground="#22dd22",
             borderwidth=2
         )
-        self.map_widget.pack(fill="both", expand=True)
+        self.map_widget.grid(row=1, column=0, sticky="nsew")
+
         self.after(200, self.init_map)
         self.last_center = None
         self.after(300, self.check_map_position)
 
-        #  Callback for location update 
+        #  Callback for location update
         self.map_widget.add_left_click_map_command(lambda coords: self.update_location_label())
         self.after(1000, self.update_location_label)  # Update on program start
 
         # User Controls (Style, Tile zoom, etc.
         controls_frame = tk.Frame(self)
-        controls_frame.pack(fill="x", pady=4, padx=10)
+        controls_frame.grid(row=2, column=0, sticky="ew", pady=4, padx=10)
         tk.Label(controls_frame, text=f'{self.ui["style_label"]}:', font=self.ui_font).pack(side="left")
 
         # Tile servers (available for selection in dropdown menu)
@@ -161,7 +171,7 @@ class _MapViewerBBox(tk.Tk):
 
         # Search, Preview & Help
         search_frame = tk.Frame(self)
-        search_frame.pack(fill="x", pady=4, padx=10)
+        search_frame.grid(row=3, column=0, sticky="ew", pady=4, padx=10)
 
         tk.Label(search_frame, text=f'{self.ui["search_label"]}:', font=self.ui_font).pack(side="left")
         self.search_entry = ttk.Entry(search_frame, width=30, font=self.ui_font)
@@ -181,7 +191,7 @@ class _MapViewerBBox(tk.Tk):
 
         # OK/Cancel buttons
         btn_frame = tk.Frame(self)
-        btn_frame.pack(fill="x", pady=8)
+        btn_frame.grid(row=4, column=0, sticky="ew", pady=8)
         ttk.Button(btn_frame, text=self.ui["ok_button"], command=self.on_ok, width=12, style="Custom.TButton").pack(side="right", padx=10)
         ttk.Button(btn_frame, text=self.ui["cancel_button"], command=self.on_cancel, width=12, style="Custom.TButton").pack(side="right")
 
@@ -198,7 +208,7 @@ class _MapViewerBBox(tk.Tk):
         self._center_window()
 
         # TODO - Implement
-        # #  Scale meter bar 
+        # #  Scale meter bar
         # self.scale_bar = tk.Label(self.map_widget, text="", bg="#0000aa",
         #     fg="white", font=(self.ui_font[0], max(10, self.ui_font[1] - 2)), padx=6, pady=2)
         # self.scale_bar.place(relx=0.02, rely=0.96, anchor="sw")  # angolo in basso a sinistra
@@ -217,6 +227,10 @@ class _MapViewerBBox(tk.Tk):
                 pass
         self.start_location_updates()
         self.deiconify()  # Show the window (almost) ready to work
+
+        if self.first_run:
+            self.show_help()
+            self. open_settings()
 
 
     def _center_window(self):
@@ -276,7 +290,7 @@ class _MapViewerBBox(tk.Tk):
             ]
         return return_info
 
-    #  Tile preview 
+    #  Tile preview
     def show_preview(self):
         """Opens a minimap showing a preview of the tile details set in the Tile Zoom control."""
 
@@ -384,11 +398,7 @@ class _MapViewerBBox(tk.Tk):
 
     # -----------------------------------------------------------------------------------------------------------------
     def show_help(self):
-        """Show the Help Window."""
-        def _on_close():
-            self.help_window.destroy()
-            self.help_window = None
-
+        """Apre la finestra di aiuto (modulo separato)."""
         if hasattr(self, "help_window") and self.help_window and tk.Toplevel.winfo_exists(self.help_window):
             try:
                 self.help_window.lift()
@@ -397,42 +407,11 @@ class _MapViewerBBox(tk.Tk):
             except Exception:
                 pass
 
-        appath = Path(sys.argv[0]).parent
-        self.help_window = tk.Toplevel(self)
-        self.help_window.title(self.ui["help_title"])
-        self.help_window.geometry("640x480")
-        self.help_window.attributes("-topmost", True)
-
-        # Load the Help file, based on selected language (if not found, use the English help)
-        hlp = self.ui.get("help_file", "help/help_eng.md")
-        help_file = Path(appath) / hlp
-        content = f"<h3>File *'{Path(help_file).resolve()}'* not found.</h3>"
         try:
-            with open(Path(help_file).resolve(), "r", encoding="utf-8") as f:
-                content = f.read()
-                # Convert markdown to HTML before displaying the contents
-                if str(help_file).lower().endswith(".md"):
-                    try:
-                        html_content = markdown.markdown(
-                            content,
-                            extensions=["tables", "fenced_code", "toc"]
-                        )
-                    except ImportError:
-                        # Markdown not installed
-                        print('Markdown module not present, please install it. Help will be shown as basic Text.')
-                        html_content = "<pre>" + content + "</pre>"
-                else:
-                    html_content = content
-        except FileNotFoundError:
-            html_content = content
-
-        # Show the text in window
-        html_label = HTMLLabel(self.help_window, html=html_content, background="white")
-        html_label.pack(fill="both", expand=True)
-
-        self.help_window.protocol("WM_DELETE_WINDOW", _on_close)
-
-
+            lang = configuration.getvalue("general", "language", "ita").lower()
+            self.help_window = HelpWindow(self, lang_code=lang, title=self.ui.get("help_title", "Help"))
+        except Exception as e:
+            messagebox.showerror("Errore", f"Impossibile aprire la finestra di aiuto:\n{e}")
 
     def get_nearest_place_name(self, lat, lon, email=None, language="it"):
         """

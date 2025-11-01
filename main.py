@@ -8,9 +8,10 @@
 #    the instructions and operate with the other windows.
 #  --------------------------------------------------------------------------------------------------------------------
 # DONE:
-#  - Remove all the trailing dots, semicolons, etc. from the ui_xxx.ini files
+#  - Remove all the trailing dots, semicolons, etc. from the ui_xxx.ini FILES
 #  - coord_picker_v2a.load_ui_strings() -- Automatically detect the keys present in the specified section of the ini file
 #  - Set the main window to show at the center of the display on launch.
+#  - BUG - The controls in the bottom disappear if window height is reduced.
 #  - Set the tile preview box so that when the zoom is changed the tile zoom value in main window is updated accordingly.
 #  - Fix the estimated tile number in the coord_picker_v2a form.
 #  - Add tile count and program icon to the download monitor.
