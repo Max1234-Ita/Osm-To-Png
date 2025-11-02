@@ -409,6 +409,18 @@ class _MapViewerBBox(tk.Tk):
 
         try:
             lang = configuration.getvalue("general", "language", "ita").lower()
+            # 🔹 Recupero nuovo percorso help_file dalla sezione [info]
+            help_path_ini = self.ui_configuration.getvalue("info", "help_file", "")
+            if not help_path_ini:
+                # compatibilità retroattiva: se non esiste in [info], cerca in [user_interface]
+                help_path_ini = self.ui_configuration.getvalue("user_interface", "help_file", f"help/help_{lang}.md")
+
+            # Normalizza percorso relativo
+            help_path = Path(help_path_ini)
+            if not help_path.is_absolute():
+                help_path = Path("help") / help_path.name
+
+            # Crea e mostra la finestra di help
             self.help_window = HelpWindow(self, lang_code=lang, title=self.ui.get("help_title", "Help"))
         except Exception as e:
             messagebox.showerror("Errore", f"Impossibile aprire la finestra di aiuto:\n{e}")

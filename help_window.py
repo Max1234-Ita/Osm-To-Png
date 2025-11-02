@@ -39,13 +39,14 @@ class HelpWindow(tk.Toplevel):
         scrollbar = tk.Scrollbar(frame)
         scrollbar.pack(side="right", fill="y")
 
+        # 🔹 Area di testo HTML con margine a sinistra
         self.html_view = HTMLLabel(
             frame,
             html="<h3>Caricamento in corso...</h3>",
             background="white",
             font=("Arial", 12)
         )
-        self.html_view.pack(side="left", fill="both", expand=True, padx=8, pady=8)
+        self.html_view.pack(side="left", fill="both", expand=True, padx=(20, 8), pady=8)
         self.html_view.config(yscrollcommand=scrollbar.set)
         scrollbar.config(command=self.html_view.yview)
 
@@ -55,7 +56,7 @@ class HelpWindow(tk.Toplevel):
         close_btn = tk.Button(bottom_frame, text="✖", width=4, command=self._on_close, font=("Arial", 12))
         close_btn.pack(side="right", padx=10, pady=5)
 
-        # 🔹 Etichetta di caricamento (centrata sulla finestra)
+        # Etichetta di caricamento centrata
         self.loading_label = tk.Label(
             self,
             text="⏳ Caricamento in corso...",
