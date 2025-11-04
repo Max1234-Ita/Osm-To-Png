@@ -12,17 +12,19 @@ from tkintermapview import TkinterMapView
 
 import globals
 import lat_lon_tileid
-from settings_form import SettingsForm
+import settings_form
+# from settings_form import SettingsForm
 from inifile_access import IniManager
 from help_window import HelpWindow
-
 
 LANG = 'ita'
 LANG_SHORT = 'it'
 CONFIG_FILE = "config.ini"
 CONFIG_SECTION = "coord_picker"
 TILE_DL_SECTION = "tile_download"
+
 configuration = IniManager(CONFIG_FILE)
+settings_form.shared_configuration = configuration
 
 # Available map styles
 map_styles = globals.map_styles
@@ -231,6 +233,8 @@ class _MapViewerBBox(tk.Tk):
         if self.first_run:
             self.show_help()
             self. open_settings()
+
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
 
 
     def _center_window(self):
@@ -647,7 +651,7 @@ class _MapViewerBBox(tk.Tk):
 
     def open_settings(self):
         """Open the Settings form"""
-        SettingsForm(self, self.settings_ui, CONFIG_FILE)
+        settings_form.SettingsForm (self, self.settings_ui, CONFIG_FILE)
 
     def center_map(self, lat, lon):
         # Center map view on specified coordinates
@@ -716,6 +720,17 @@ class _MapViewerBBox(tk.Tk):
         self._save_settings()
         self.selection = None
         self.destroy()
+
+
+    def on_close(self):
+        """Gestisce la chiusura della finestra principale (pulsante X)."""
+        # Salva la geometria e lo stato, ma non riscrive valori predefiniti
+        try:
+            self._save_settings()
+        except Exception as e:
+            print(f"Errore salvataggio config su chiusura: {e}")
+        finally:
+            self.destroy()
 
     # mercator conversions
     def latlon_to_pixels(self, lat, lon, zoom):

@@ -1,5 +1,6 @@
 # Simple access to .ini files
 
+from pathlib import Path
 import configparser
 import os
 
@@ -22,7 +23,9 @@ class IniManager:
         if not self.config.has_section(section):
             self.config.add_section(section)
         self.config.set(section, key, str(value))
-        with open(self.filename, "w", encoding="utf-8") as f:
+        # with open(self.filename, "w", encoding="utf-8") as f:
+        fn = Path(self.filename).resolve()
+        with open(fn, "w", encoding="utf-8") as f:
             self.config.write(f)
 
     def getkeys(self, section):
@@ -30,3 +33,7 @@ class IniManager:
         if self.config.has_section(section):
             keys = list(dict(self.config[section]).keys())
         return keys
+
+    def reload(self):
+        """Rilegge il file INI da disco, aggiornando la cache."""
+        self.config.read(self.filename, encoding='utf-8')

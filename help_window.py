@@ -28,6 +28,9 @@ class HelpWindow(tk.Toplevel):
         self.minsize(500, 400)
         self.attributes("-topmost", True)
 
+        self.grab_set()
+        self.after(1000, self.grab_release)  # Make normal again
+
         # Comportamento di chiusura
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 

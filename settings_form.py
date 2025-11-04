@@ -1,8 +1,11 @@
 
 import tkinter as tk
 from tkinter import ttk, messagebox
+
 from inifile_access import IniManager
 from tooltip import ToolTip
+
+shared_configuration = None
 
 class SettingsForm(tk.Toplevel):
     def __init__(self, master, ui_strings, config_path="config.ini"):
@@ -22,6 +25,9 @@ class SettingsForm(tk.Toplevel):
                     self.fontsize.set(str(val + 1))
             except ValueError:
                 self.fontsize.set("14")
+        def _unlift():
+            self.attributes("-topmost", False)
+            self.grab_release()
 
         super().__init__(master)
         self.ui = ui_strings
@@ -31,10 +37,12 @@ class SettingsForm(tk.Toplevel):
         self.attributes("-topmost", True)
 
         # Window settings
-        self.transient(master)   # Connect window to parent
-        self.grab_set()          # Capture input from main window
-        self.focus_force()       # force focus and window to foreground
-        self.lift()
+        self.transient(master)      # Connect window to parent
+        self.grab_set()             # Capture input from main window
+        self.focus_force()          # force focus and window to foreground
+        self.lift()                 # Raise on top of other windows
+        # self.after(1000, self.grab_release)     # Make normal again
+        self.after(1000, _unlift)  # Make normal again
 
         width, height = 360, 180
         self.update_idletasks()
@@ -57,7 +65,10 @@ class SettingsForm(tk.Toplevel):
             pass
 
         self.ui = ui_strings
-        self.config = IniManager(config_path)
+        # self.config = IniManager(config_path)
+
+        global shared_configuration
+        self.config = shared_configuration if shared_configuration else IniManager(config_path)
 
         # Get current values
         self.fontsize = tk.StringVar(value=self.config.getvalue("general", "fontsize", "14"))
@@ -104,19 +115,25 @@ class SettingsForm(tk.Toplevel):
         for i in range(2):
             frm.columnconfigure(i, weight=1)
 
-
     def save_settings(self):
-        """Save to config.ini and recommend program restart"""
+        """Salva le impostazioni su config.ini e mostra il messaggio di riavvio dopo la chiusura."""
         try:
-            self.config.setvalue("general", "fontsize", self.fontsize.get())
             self.config.setvalue("general", "language", self.language.get())
+            self.config.setvalue("general", "fontsize", self.fontsize.get())
             self.config.setvalue("tile_download", "apikey", self.apikey.get())
             self.config.setvalue("tile_download", "osm_email", self.email.get())
-            messagebox.showinfo(
+
+            # Chiudi prima la finestra
+            self.destroy()
+
+            # Mostra l'avviso dopo 200ms (così è in primo piano)
+            self.after(200, lambda: messagebox.showinfo(
                 self.ui["title"],
-                self.ui.get("restart_message", "")
-            )
+                self.ui.get("restart_message", "Riavvia l'applicazione per applicare le modifiche.")
+            ))
+
         except Exception as e:
             msg = self.config.getvalue('settings_form', 'save_error')
             messagebox.showerror(self.ui["title"], f"{msg}:\n{e}")
-        self.destroy()
+            self.destroy()
+
