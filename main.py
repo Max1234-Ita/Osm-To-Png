@@ -41,6 +41,7 @@ output_picture = 'PngMap.png'
 #  Restore configuration
 ini = inifile_access.IniManager('config.ini')
 
+# ---------------------------------------------------------------------------------------------------------------
 # Launch the Coordinate picker to get the bbox of the wanted area
 user_selection = coord_picker_v2a.select_bbox()
     # Output from user_selection:
@@ -50,7 +51,7 @@ user_selection = coord_picker_v2a.select_bbox()
     #   [3]             ->  requested map zoom
     #   [4], [5] etc.   ->  other information not used for download
 
-xx = ini.getkeys('general')
+xx = ini.getkeys('general')     # TODO - Remove?
 
 if user_selection:
     # Ask for the output file name, through a selection window

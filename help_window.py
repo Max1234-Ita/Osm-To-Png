@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 help_window.py
-Gestisce la finestra popup di Aiuto (Help Window), che mostra un file Markdown
-in base alla lingua selezionata (es. help_it.md, help_en.md, ecc.)
+Manages the Help popup window, which displays a Markdown help file
+based on the currently selected language (e.g. help_en.md, help_it.md, etc.)
 """
 
 import tkinter as tk
@@ -12,40 +12,42 @@ import threading
 import markdown
 from tkhtmlview import HTMLLabel
 
+from inifile_access import IniManager
 
 class HelpWindow(tk.Toplevel):
-    def __init__(self, master, lang_code="it", title="Help"):
+    def __init__(self, master, help_file, title="Help"):
         """
-        :param master: finestra principale (parent)
-        :param lang_code: codice lingua, es. "it", "en"
-        :param title: titolo finestra
+        :param master: parent window
+        :param help_file: Name of the help file, i.e. 'help_eng.md'
+        :param title: window title
         """
+        self.helpfile = help_file
+
         super().__init__(master)
         self.master = master
-        self.lang_code = lang_code.lower()
+        # self.lang_code = lang_code.lower()
         self.title(title)
         self.geometry("700x500")
         self.minsize(500, 400)
         self.attributes("-topmost", True)
 
-        self.grab_set()
-        self.after(1000, self.grab_release)  # Make normal again
+        cfg = IniManager('config.ini')
 
-        # Comportamento di chiusura
+        # Window close behavior
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
-        # Frame principale
+        # Main frame
         frame = tk.Frame(self, bg="white")
         frame.pack(fill="both", expand=True)
 
-        # Scrollbar + area HTML
+        # Scrollbar + HTML area
         scrollbar = tk.Scrollbar(frame)
         scrollbar.pack(side="right", fill="y")
 
-        # 🔹 Area di testo HTML con margine a sinistra
+        # HTML display area with left margin
         self.html_view = HTMLLabel(
             frame,
-            html="<h3>Caricamento in corso...</h3>",
+            html="<h3>Loading help file...</h3>",
             background="white",
             font=("Arial", 12)
         )
@@ -53,39 +55,43 @@ class HelpWindow(tk.Toplevel):
         self.html_view.config(yscrollcommand=scrollbar.set)
         scrollbar.config(command=self.html_view.yview)
 
-        # Barra inferiore con pulsante Chiudi (✖)
+        # Bottom bar with Close (✖) button
         bottom_frame = tk.Frame(self, bg="#f0f0f0")
         bottom_frame.pack(fill="x", side="bottom")
         close_btn = tk.Button(bottom_frame, text="✖", width=4, command=self._on_close, font=("Arial", 12))
         close_btn.pack(side="right", padx=10, pady=5)
 
-        # Etichetta di caricamento centrata
+        # Centered loading label
         self.loading_label = tk.Label(
             self,
-            text="⏳ Caricamento in corso...",
+            text="⏳ Loading help content...",
             font=("Arial", 11),
             bg="white",
             fg="gray30"
         )
         self.loading_label.place(relx=0.5, rely=0.5, anchor="center")
 
-        # Caricamento del file in background
+        # Load help file asynchronously
         threading.Thread(target=self._load_help_file, daemon=True).start()
 
-    # ------------------------------------------------------------------------------------
+    # ----------------------------------------------------------------------
     def _load_help_file(self):
-        """Carica il file markdown corrispondente alla lingua impostata in un thread separato."""
+        """Loads the Markdown help file in a background thread."""
         try:
-            # Percorso: ./help/help_<lang>.md
-            help_path = Path("help") / f"help_{self.lang_code}.md"
-            help_path = help_path.resolve()
+            # Expected path: ./help/help_<lang>.md
+            # help_path = Path("help") / f"help_{self.lang_code}.md"
+            # help_path = help_path.resolve()
+            help_path = Path(f"help/{self.helpfile}").resolve()
 
-            # fallback su inglese
+            # Fallback to English help file
             if not help_path.exists():
                 help_path = (Path("help") / "help_en.md").resolve()
 
             if not help_path.exists():
-                html_content = f"<h3>File di aiuto non trovato:<br>{help_path}</h3>"
+                html_content = (
+                    f"<h3>Help file not found.<br>"
+                    f"Please ensure the folder '/help' contains 'help_{self.lang_code}.md' or 'help_en.md'.</h3>"
+                )
             else:
                 with open(help_path, "r", encoding="utf-8") as f:
                     md_content = f.read()
@@ -94,34 +100,33 @@ class HelpWindow(tk.Toplevel):
                     extensions=["tables", "fenced_code", "toc", "sane_lists"]
                 )
 
-            # Aggiorna la GUI nel main thread
+            # Update the GUI safely from main thread
             self.after(0, lambda: self._update_html(html_content))
 
         except Exception as e:
-            msg = f"Impossibile leggere il file di aiuto:\n{e}"
+            msg = f"Unable to read help file:\n{e}"
             print(msg)
-            self.after(0, lambda: messagebox.showerror("Errore", msg))
-            self.after(0, lambda: self._update_html("<h3>Errore nel caricamento del file di aiuto.</h3>"))
+            self.after(0, lambda: messagebox.showerror("Error", msg))
+            self.after(0, lambda: self._update_html("<h3>Error loading help file.</h3>"))
 
-    # ------------------------------------------------------------------------------------
+    # ----------------------------------------------------------------------
     def _update_html(self, html_content):
-        """Aggiorna il contenuto HTML nella finestra (main thread safe)."""
-
-        # 🔹 Rimuovi la label di caricamento, se esiste
-        if hasattr(self, "loading_label") and self.loading_label.winfo_exists():
-            self.loading_label.destroy()
-
-        # Aggiorna il contenuto HTML
-        self.html_view.set_html(html_content)
-
+        """Updates HTML content inside the window (thread-safe)."""
         try:
-            self.html_view.set_html(html_content)
-        except Exception as e:
-            print(f"Errore aggiornamento HTMLLabel: {e}")
+            # Remove the loading label if still visible
+            if hasattr(self, "loading_label") and self.loading_label.winfo_exists():
+                self.loading_label.destroy()
 
-    # ------------------------------------------------------------------------------------
+            # Update HTML view
+            self.html_view.set_html(html_content)
+
+        except Exception as e:
+            print(f"Error updating HTMLLabel: {e}")
+            self.after(0, lambda: messagebox.showerror("Error", str(e)))
+
+    # ----------------------------------------------------------------------
     def _on_close(self):
-        """Chiude la finestra di help"""
+        """Closes the help window."""
         try:
             self.destroy()
         except Exception:

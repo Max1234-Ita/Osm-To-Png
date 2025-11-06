@@ -1,11 +1,20 @@
+#!/usr/bin/env python3
+"""
+coord_picker_v2a.py
+Main application module (map viewer / bbox selector).
+
+Key points:
+- Uses a single shared IniManager instance (configuration).
+- Passes shared configuration into SettingsForm so settings changes are applied immediately.
+- Provides apply_runtime_settings() that the SettingsForm calls after saving (to update API key, tile server URLs, fonts, etc.).
+- Default UI language file is ui_english.ini if config missing or invalid.
+"""
 
 import math
 import sys
 import tkinter as tk
 import webbrowser
 import requests
-import markdown
-from tkhtmlview import HTMLLabel
 from pathlib import Path
 from tkinter import ttk, messagebox
 from tkintermapview import TkinterMapView
@@ -13,212 +22,217 @@ from tkintermapview import TkinterMapView
 import globals
 import lat_lon_tileid
 import settings_form
-# from settings_form import SettingsForm
 from inifile_access import IniManager
 from help_window import HelpWindow
 
-LANG = 'ita'
-LANG_SHORT = 'it'
+# Default UI filename used when config does not specify a language file
+DEFAULT_LANG_UI_FILE = "ui_english.ini"
 CONFIG_FILE = "config.ini"
 CONFIG_SECTION = "coord_picker"
 TILE_DL_SECTION = "tile_download"
 
+# Shared configuration instance
 configuration = IniManager(CONFIG_FILE)
+# Expose to settings_form module if some parts still reference it
 settings_form.shared_configuration = configuration
 
-# Available map styles
+# Map styles
 map_styles = globals.map_styles
 
-# UI localization
-def load_ui_strings(lang_code="ita"):
+
+def _resolve_lang_filename(config_value: str) -> str:
     """
-    Loads the User Interface strings from the corresponding .ini file (ui_eng.ini, ui_ita.ini, etc.
-    :param lang_code:   Language code, i.e. eng for English, ita for Italian.
-                        A file ui_{lang_code}.ini must exist in lang directory
-    :return:            The UI strings for the Main and Settings form, as list
+    Accepts either a filename (ui_*.ini) or a short code (e.g. 'eng', 'ita')
+    and returns the appropriate filename (ui_*.ini). If input is empty, returns default.
     """
-    ui_file = Path('lang') / f"ui_{lang_code}.ini"
+    if not config_value:
+        return DEFAULT_LANG_UI_FILE
+    cfg = str(config_value).strip()
+    if cfg.lower().endswith(".ini") and cfg.lower().startswith("ui_"):
+        return cfg
+    simple = cfg.lower()
+    return f"ui_{simple}.ini"
+
+
+def load_ui_strings(lang_ui_filename: str = DEFAULT_LANG_UI_FILE):
+    """
+    Loads UI strings using IniManager from ./lang/<lang_ui_filename>.
+    On failure shows an English error and exits.
+    """
+    lang_path = Path("lang") / lang_ui_filename
+    if not lang_path.exists():
+        messagebox.showerror(
+            "Error",
+            f"Unable to find language file: please ensure '/lang' contains '{lang_ui_filename}' or reinstall the application."
+        )
+        sys.exit(-1)
 
     try:
-        ui_config = IniManager(ui_file)
-    except Exception:
-        print(f"Error while loading file '{ui_file.name}' ")
-        sys.exit(-99)
+        ui_config = IniManager(lang_path)
+    except Exception as e:
+        messagebox.showerror("Error", f"Error loading language file '{lang_ui_filename}':\n{e}")
+        sys.exit(-2)
 
-    keys = ui_config.getkeys('user_interface')
-    setting_keys = ui_config.getkeys('settings_form')
-
-    ui = {k: ui_config.getvalue("user_interface", k, f"[{k}]") for k in keys}
+    ui_keys = ui_config.getkeys("user_interface")
+    setting_keys = ui_config.getkeys("settings_form")
+    ui = {k: ui_config.getvalue("user_interface", k, f"[{k}]") for k in ui_keys}
     setting_ui = {k: ui_config.getvalue("settings_form", k, f"[{k}]") for k in setting_keys}
-    return ui, setting_ui
+    return ui, setting_ui, ui_config
 
 
-# Main Class
 class _MapViewerBBox(tk.Tk):
     def __init__(self):
-        global LANG, LANG_SHORT
         super().__init__()
+
         self.selection = None
         self.tile_preview_minimap = None
         self.help_window = None
         self._prev_position = (0, 0)
-        self.apikey = configuration.getvalue(TILE_DL_SECTION, "apikey")
-        self.first_run = configuration.getvalue('tile_download', 'savedir') == ''
+        self.preview_window = None
+        self.preview_zoom_label = None
+        self.help_file = None
 
-        self.withdraw()     # Hide window during initialization
+        # Read API and first_run flag from shared configuration
+        self.config = configuration  # shared instance
+        self.apikey = self.config.getvalue(TILE_DL_SECTION, "apikey", "")
+        self.first_run = self.config.getvalue(TILE_DL_SECTION, "savedir", "") == ""
 
-        # self.grid_rowconfigure(1, weight=1)  # la mappa si espande
-        self.grid_rowconfigure(4, minsize=60)  # altezza minima per i pulsanti
+        # Hide while initializing
+        self.withdraw()
+
+        # Geometry & layout basics
+        self.grid_rowconfigure(4, minsize=60)
         self.grid_columnconfigure(0, weight=1)
-        self.minsize(800, 500)  # altezza minima della finestra
+        self.minsize(800, 500)
 
-        # Restore initial form geometry
-        win_w = configuration.getvalue(CONFIG_SECTION, "win_width")
-        win_h = configuration.getvalue(CONFIG_SECTION, "win_height")
-        if win_w and win_h:
-            try:
+        # Restore geometry
+        win_w = self.config.getvalue(CONFIG_SECTION, "win_width", "")
+        win_h = self.config.getvalue(CONFIG_SECTION, "win_height", "")
+        try:
+            if win_w and win_h:
                 self.geometry(f"{int(win_w)}x{int(win_h)}")
-            except Exception:
+            else:
                 self.geometry("950x750")
-        else:
+        except Exception:
             self.geometry("950x750")
         self._center_window()
 
-        # Language & Font
-        LANG = configuration.getvalue("general", "language", "ita")
-        self.lang_file = Path('lang') / f'ui_{LANG}.ini'
-        fontsize = int(configuration.getvalue("general", "fontsize", 14))
-        self.ui_configuration = IniManager(self.lang_file)
-        self.ui, self.settings_ui = load_ui_strings(LANG)
-        LANG_SHORT = self.ui_configuration.getvalue('info', 'lang')
+        # Load UI language file (config may contain filename or code)
+        cfg_lang_value = self.config.getvalue("general", "language", DEFAULT_LANG_UI_FILE)
+        lang_ui_file = _resolve_lang_filename(cfg_lang_value)
+        self.lang_file = Path("lang") / lang_ui_file
+
+        if not self.lang_file.exists():
+            messagebox.showerror(
+                "Error",
+                f"Unable to find language file: please ensure '/lang' contains '{lang_ui_file}' or reinstall the application."
+            )
+            self.destroy()
+            sys.exit(1)
+
+        self.ui, self.settings_ui, self.ui_configuration = load_ui_strings(lang_ui_file)
+
+        # Determine short language code (info -> lang)
+        self.lang_short = self.ui_configuration.getvalue("info", "lang", "en")
+
+        # Fonts
+        fontsize = int(self.config.getvalue("general", "fontsize", 14))
         self.ui_font = ("Arial", fontsize)
         self.small_font = ("Arial", max(8, fontsize - 2))
-        self.title(self.ui["window_title"])
+
+        # Title & icon
+        self.title(self.ui.get("window_title", "Map Viewer"))
         self.set_window_icon(self)
 
-        #  Top bar (settings & Help buttons)
+        # Top bar
         topbar = tk.Frame(self)
         topbar.grid(row=0, column=0, sticky="ew", padx=10, pady=(5, 2))
-
-        # Current location label (to the left, on top bar)
         self.location_label = ttk.Label(topbar, text="📍 ...", anchor="w")
         self.location_label.pack(side="left", padx=(5, 0))
 
-        self.grid_rowconfigure(1, weight=1)  # la mappa si espande
+        self.grid_rowconfigure(1, weight=1)
         self.grid_columnconfigure(0, weight=1)
-        self.minsize(950, 650)  # altezza minima della finestra
+        self.minsize(950, 650)
 
-        # Help button (text == "?")
         help_btn = ttk.Button(topbar, text="?", width=3, command=self.show_help)
         help_btn.pack(side="right", padx=(0, 5))
-
-        # Settings button
         settings_btn = ttk.Button(topbar, text="⚙️", width=3, command=self.open_settings)
         settings_btn.pack(side="right", padx=(0, 5))
 
-
-        # Map Widget
-        self.map_widget = TkinterMapView(
-            self,
-            corner_radius=0,
-            highlightthickness=1,
-            highlightbackground="#22dd22",
-            borderwidth=2
-        )
+        # Map widget
+        self.map_widget = TkinterMapView(self, corner_radius=0, highlightthickness=1, highlightbackground="#22dd22", borderwidth=2)
         self.map_widget.grid(row=1, column=0, sticky="nsew")
 
         self.after(200, self.init_map)
         self.last_center = None
         self.after(300, self.check_map_position)
 
-        #  Callback for location update
+        # left click callback
         self.map_widget.add_left_click_map_command(lambda coords: self.update_location_label())
-        self.after(1000, self.update_location_label)  # Update on program start
+        self.after(1000, self.update_location_label)
 
-        # User Controls (Style, Tile zoom, etc.
+        # Controls
         controls_frame = tk.Frame(self)
         controls_frame.grid(row=2, column=0, sticky="ew", pady=4, padx=10)
-        tk.Label(controls_frame, text=f'{self.ui["style_label"]}:', font=self.ui_font).pack(side="left")
+        tk.Label(controls_frame, text=f'{self.ui.get("style_label", "Style")}:', font=self.ui_font).pack(side="left")
 
-        # Tile servers (available for selection in dropdown menu)
-        self.tile_servers = {
-            name: url.replace("{APIKEY}", self.apikey or "")
-            for name, url in map_styles.items()
-        }
+        # Prepare tile servers mapping (apply API key)
+        self._rebuild_tile_servers()
+
         default_style = "Mapnik (OSM)"
-        map_style = configuration.getvalue('tile_download', 'style')
-        if not map_style:
-            map_style = default_style
+        map_style = self.config.getvalue(TILE_DL_SECTION, "style", default_style)
         self.selected_style = tk.StringVar(value=map_style)
 
         style = ttk.Style()
         style.configure("Custom.TMenubutton", font=self.ui_font)
         style.configure("Custom.TButton", font=self.ui_font)
 
-        style_menu = ttk.OptionMenu(controls_frame, self.selected_style, map_style,
-                                    *self.tile_servers.keys(), command=self.on_style_change)
+        style_menu = ttk.OptionMenu(controls_frame, self.selected_style, map_style, *self.tile_servers.keys(), command=self.on_style_change)
         style_menu.pack(side="left", padx=5)
         style_menu.configure(style="Custom.TMenubutton")
 
-        # Tile Zoom entry (with buttons); Retrieve initial values from config.ini
-        tk.Label(controls_frame, text=f'{self.ui["zoom_label"]}:', font=self.ui_font).pack(side="left", padx=(20, 0))
+        # Tile zoom entry
+        tk.Label(controls_frame, text=f'{self.ui.get("zoom_label", "Tile zoom")}:', font=self.ui_font).pack(side="left", padx=(20, 0))
         self.zoom_entry = ttk.Entry(controls_frame, width=5, font=self.ui_font, justify="center")
-        self.tilezoom = configuration.getvalue('tile_download', 'zoom')
+        self.tilezoom = self.config.getvalue(TILE_DL_SECTION, "zoom", "")
         self.zoom_entry.insert(0, self.tilezoom)
         self.zoom_entry.pack(side="left", padx=5)
         ttk.Button(controls_frame, text="-", width=3, command=self.decrement_zoom, style="Custom.TButton").pack(side="left", padx=2)
         ttk.Button(controls_frame, text="+", width=3, command=self.increment_zoom, style="Custom.TButton").pack(side="left", padx=2)
-        self.tiles_label = tk.Label(controls_frame, text=f"{self.ui['tiles_label']}: n/a", font=self.ui_font)
+        self.tiles_label = tk.Label(controls_frame, text=f"{self.ui.get('tiles_label', 'Tiles')}: n/a", font=self.ui_font)
         self.tiles_label.pack(side="left", padx=(15, 10))
 
-        # Search, Preview & Help
+        # Search & preview
         search_frame = tk.Frame(self)
         search_frame.grid(row=3, column=0, sticky="ew", pady=4, padx=10)
-
-        tk.Label(search_frame, text=f'{self.ui["search_label"]}:', font=self.ui_font).pack(side="left")
+        tk.Label(search_frame, text=f'{self.ui.get("search_label", "Search")}:', font=self.ui_font).pack(side="left")
         self.search_entry = ttk.Entry(search_frame, width=30, font=self.ui_font)
         self.search_entry.pack(side="left", padx=5)
         self.search_entry.bind("<Return>", lambda e: self.search_location())
 
-        # Search button
-        search_btn = ttk.Button(search_frame, text=self.ui["search_button"], command=self.search_location,
-                                style="Custom.TButton")
+        search_btn = ttk.Button(search_frame, text=self.ui.get("search_button", "Search"), command=self.search_location, style="Custom.TButton")
         search_btn.pack(side="left", padx=5)
-
-        # Preview Tiles button
-        self.preview_window = None
-        preview_btn = ttk.Button(search_frame, text=self.ui["preview_button"], command=self.show_preview,
-                                 style="Custom.TButton")
+        preview_btn = ttk.Button(search_frame, text=self.ui.get("preview_button", "Preview"), command=self.show_preview, style="Custom.TButton")
         preview_btn.pack(side="left", padx=(10, 5))
 
-        # OK/Cancel buttons
+        # OK/Cancel
         btn_frame = tk.Frame(self)
         btn_frame.grid(row=4, column=0, sticky="ew", pady=8)
-        ttk.Button(btn_frame, text=self.ui["ok_button"], command=self.on_ok, width=12, style="Custom.TButton").pack(side="right", padx=10)
-        ttk.Button(btn_frame, text=self.ui["cancel_button"], command=self.on_cancel, width=12, style="Custom.TButton").pack(side="right")
+        ttk.Button(btn_frame, text=self.ui.get("ok_button", "OK"), command=self.on_ok, width=12, style="Custom.TButton").pack(side="right", padx=10)
+        ttk.Button(btn_frame, text=self.ui.get("cancel_button", "Cancel"), command=self.on_cancel, width=12, style="Custom.TButton").pack(side="right")
 
-        # Overlay labels (current map zoom and attribution)
-        self.zoom_overlay = tk.Label(self.map_widget, text=f"{self.ui['zoom_map_label']}: 15",
-                                     font=self.small_font, bg="#f0f0f0", anchor="e", relief="flat")
+        # Overlays
+        self.zoom_overlay = tk.Label(self.map_widget, text=f"{self.ui.get('zoom_map_label','Zoom')}: 15", font=self.small_font, bg="#f0f0f0", anchor="e", relief="flat")
         self.zoom_overlay.place(relx=0.99, rely=0.01, anchor="ne")
-        self.osm_overlay = tk.Label(self.map_widget, text=self.ui["osm_attribution"],
-                                    font=(self.ui_font[0], max(10, self.ui_font[1] - 2)),
-                                    fg="gray30", bg="#f0f0f0", relief="flat", cursor="hand2")
+        self.osm_overlay = tk.Label(self.map_widget, text=self.ui.get("osm_attribution", "© OSM"), font=(self.ui_font[0], max(10, self.ui_font[1] - 2)), fg="gray30", bg="#f0f0f0", relief="flat", cursor="hand2")
         self.osm_overlay.place(relx=0.99, rely=0.99, anchor="se")
         self.osm_overlay.bind("<Button-1>", lambda e: webbrowser.open_new_tab("https://www.openstreetmap.org/copyright"))
 
         self._center_window()
 
-        # TODO - Implement
-        # #  Scale meter bar
-        # self.scale_bar = tk.Label(self.map_widget, text="", bg="#0000aa",
-        #     fg="white", font=(self.ui_font[0], max(10, self.ui_font[1] - 2)), padx=6, pady=2)
-        # self.scale_bar.place(relx=0.02, rely=0.96, anchor="sw")  # angolo in basso a sinistra
-        # self.scale_bar.lift()
-
-        # Set map view center to saved position
-        last_pos = configuration.getvalue(CONFIG_SECTION, "lastposition")
-        last_zoom = configuration.getvalue(CONFIG_SECTION, "lastzoom")
+        # Restore start pos/zoom
+        last_pos = self.config.getvalue(CONFIG_SECTION, "lastposition", "")
+        last_zoom = self.config.getvalue(CONFIG_SECTION, "lastzoom", "")
         self.start_pos = (41.9028, 12.4964)
         self.start_zoom = int(last_zoom or 15)
         if last_pos:
@@ -227,19 +241,71 @@ class _MapViewerBBox(tk.Tk):
                 self.start_pos = (lat, lon)
             except Exception:
                 pass
+
         self.start_location_updates()
-        self.deiconify()  # Show the window (almost) ready to work
+        self.deiconify()
 
         if self.first_run:
             self.show_help()
-            self. open_settings()
+            # Open settings passing the shared config and a callback to apply runtime changes
+            self.open_settings()
 
         self.protocol("WM_DELETE_WINDOW", self.on_close)
 
+    # ---------------------------
+    # Runtime settings application
+    # ---------------------------
+    def apply_runtime_settings(self):
+        """
+        Called after settings are saved. Update runtime values which don't require restart:
+        - API key (update tile_servers)
+        - Font sizes (update some widgets)
+        - Any other runtime values we want to refresh immediately
+        """
+        try:
+            # Re-read values from the shared configuration instance
+            self.apikey = self.config.getvalue(TILE_DL_SECTION, "apikey", "")
+            fontsize = int(self.config.getvalue("general", "fontsize", 14))
+            self.ui_font = ("Arial", fontsize)
+            self.small_font = ("Arial", max(8, fontsize - 2))
 
+            # Rebuild tile servers to apply new API key
+            self._rebuild_tile_servers()
+
+            # If current selected style still exists, re-apply it's tile server
+            current_style = self.selected_style.get()
+            url = self.tile_servers.get(current_style)
+            if url:
+                try:
+                    self.map_widget.set_tile_server(url)
+                except Exception:
+                    pass
+
+            # Update fonts on a small selection of widgets (best-effort)
+            try:
+                # labels that are easy to update
+                self.location_label.config(font=self.ui_font)
+                self.tiles_label.config(font=self.ui_font)
+                self.zoom_overlay.config(font=self.small_font)
+                self.osm_overlay.config(font=(self.ui_font[0], max(10, self.ui_font[1] - 2)))
+            except Exception:
+                pass
+
+        except Exception as e:
+            print(f"apply_runtime_settings error: {e}")
+
+    def _rebuild_tile_servers(self):
+        """Rebuild the tile_servers mapping substituting {APIKEY} with the current key."""
+        self.tile_servers = {
+            name: url.replace("{APIKEY}", (self.apikey or ""))
+            for name, url in map_styles.items()
+        }
+
+    # ---------------------------
+    # Window utilities & persistence
+    # ---------------------------
     def _center_window(self):
-        """Place the window at the display's center."""
-        self.update_idletasks()  # Ensure that geometry is up to date
+        self.update_idletasks()
         w = self.winfo_width()
         h = self.winfo_height()
         screen_w = self.winfo_screenwidth()
@@ -255,13 +321,22 @@ class _MapViewerBBox(tk.Tk):
         center_lon = str(returninfo[5][1])
         zoom_val_map = str(returninfo[4])
         zoom_val_entry = str(returninfo[3])
-        configuration.setvalue(CONFIG_SECTION, "lastposition", f"{center_lat},{center_lon}")
-        configuration.setvalue(CONFIG_SECTION, "lastzoom", zoom_val_map)
-        configuration.setvalue(CONFIG_SECTION, "win_width", self.winfo_width())
-        configuration.setvalue(CONFIG_SECTION, "win_height", self.winfo_height())
-        configuration.setvalue(TILE_DL_SECTION, "zoom", zoom_val_entry)
+        self.config.setvalue(CONFIG_SECTION, "lastposition", f"{center_lat},{center_lon}")
+        self.config.setvalue(CONFIG_SECTION, "lastzoom", zoom_val_map)
+        self.config.setvalue(CONFIG_SECTION, "win_width", self.winfo_width())
+        self.config.setvalue(CONFIG_SECTION, "win_height", self.winfo_height())
+        self.config.setvalue(TILE_DL_SECTION, "zoom", zoom_val_entry)
         style_name = self.selected_style.get()
-        configuration.setvalue(TILE_DL_SECTION, "style", style_name)
+        self.config.setvalue(TILE_DL_SECTION, "style", style_name)
+        # Persist
+        if hasattr(self.config, "write"):
+            try:
+                self.config.write()
+            except Exception:
+                if hasattr(self.config, "save"):
+                    self.config.save()
+        elif hasattr(self.config, "save"):
+            self.config.save()
 
     def _get_return_info(self):
         center_lat, center_lon = self.map_widget.get_position()
@@ -291,37 +366,33 @@ class _MapViewerBBox(tk.Tk):
             str(zoom_entry),
             str(zoom_map),
             (center_lat, center_lon),
-            ]
+        ]
         return return_info
 
-    #  Tile preview
+    # ---------------------------
+    # Tile preview
+    # ---------------------------
     def show_preview(self):
-        """Opens a minimap showing a preview of the tile details set in the Tile Zoom control."""
-
         def _on_close():
-            """Destroy the minimap viewer if the Close button is clicked"""
             self.preview_window = None
             self.tile_preview_minimap = None
             self.preview_zoom_label = None
             popup.destroy()
 
         try:
-            #  Initialize minimap
             lat, lon = self.map_widget.get_position()
             zoom_target = int(self.zoom_entry.get() or 15)
             style_name = self.selected_style.get()
             tile_server = self.tile_servers.get(style_name, list(self.tile_servers.values())[0])
 
-            #  Update if already exists
             if self.preview_window and tk.Toplevel.winfo_exists(self.preview_window):
                 self.tile_preview_minimap.set_tile_server(tile_server)
                 self.tile_preview_minimap.set_position(lat, lon)
                 self.tile_preview_minimap.set_zoom(zoom_target)
-                if hasattr(self, "preview_zoom_label") and self.preview_zoom_label:
+                if getattr(self, "preview_zoom_label", None):
                     self.preview_zoom_label.config(text=f"Tile zoom: {zoom_target}")
                 return
 
-            #  Create new
             main_w, main_h = self.winfo_width(), self.winfo_height()
             preview_w, preview_h = max(400, main_w // 2), max(300, main_h // 2)
 
@@ -333,7 +404,6 @@ class _MapViewerBBox(tk.Tk):
             popup.focus_force()
             self.preview_window = popup
 
-            #  Map Widget
             mini_map = TkinterMapView(popup, width=preview_w, height=preview_h, corner_radius=0)
             mini_map.pack(fill="both", expand=True)
             mini_map.set_tile_server(tile_server)
@@ -341,29 +411,17 @@ class _MapViewerBBox(tk.Tk):
             mini_map.set_zoom(zoom_target)
             self.tile_preview_minimap = mini_map
 
-            #  Zoom factor label
             font_family = self.ui_font[0]
             font_size = max(8, self.ui_font[1] - 2)
-            self.preview_zoom_label = tk.Label(
-                mini_map,
-                text=f"Tile zoom: {zoom_target}",
-                bg="#333333",
-                fg="white",
-                font=(font_family, font_size),
-                padx=6, pady=2,
-                relief="ridge", borderwidth=1
-            )
+            self.preview_zoom_label = tk.Label(mini_map, text=f"Tile zoom: {zoom_target}", bg="#333333", fg="white", font=(font_family, font_size), padx=6, pady=2, relief="ridge", borderwidth=1)
             self.preview_zoom_label.place(relx=0.98, rely=0.02, anchor="ne")
             self.preview_zoom_label.lift()
 
-            #  Polling for zoom factor update
             self._preview_last_zoom = zoom_target
 
             def poll_preview_zoom():
-                """Check if zoom has changed"""
                 if not (self.preview_window and tk.Toplevel.winfo_exists(self.preview_window)):
-                    return  # Exit if window has been destroyed
-
+                    return
                 try:
                     current_zoom = round(mini_map.zoom)
                     if current_zoom != getattr(self, "_preview_last_zoom", None):
@@ -374,12 +432,10 @@ class _MapViewerBBox(tk.Tk):
                         self.zoom_entry.insert(0, str(current_zoom))
                 except Exception:
                     pass
-
                 self.after(250, poll_preview_zoom)
 
             poll_preview_zoom()
 
-            #  Update preview if tile zoom changes in main window
             def on_main_zoom_change(event=None):
                 try:
                     new_zoom = int(self.zoom_entry.get() or 15)
@@ -392,17 +448,15 @@ class _MapViewerBBox(tk.Tk):
                     pass
 
             self.zoom_entry.bind("<FocusOut>", on_main_zoom_change)
-
             popup.protocol("WM_DELETE_WINDOW", _on_close)
 
         except Exception as e:
-            self.previewerror = "xx"
-            messagebox.showerror("Errore", f"{self.previewerror}:\n{e}")
+            messagebox.showerror("Error", f"Preview error:\n{e}")
 
-
-    # -----------------------------------------------------------------------------------------------------------------
+    # ---------------------------
+    # Help
+    # ---------------------------
     def show_help(self):
-        """Apre la finestra di aiuto (modulo separato)."""
         if hasattr(self, "help_window") and self.help_window and tk.Toplevel.winfo_exists(self.help_window):
             try:
                 self.help_window.lift()
@@ -412,64 +466,44 @@ class _MapViewerBBox(tk.Tk):
                 pass
 
         try:
-            lang = configuration.getvalue("general", "language", "ita").lower()
-            # 🔹 Recupero nuovo percorso help_file dalla sezione [info]
-            help_path_ini = self.ui_configuration.getvalue("info", "help_file", "")
-            if not help_path_ini:
-                # compatibilità retroattiva: se non esiste in [info], cerca in [user_interface]
-                help_path_ini = self.ui_configuration.getvalue("user_interface", "help_file", f"help/help_{lang}.md")
+            help_file = self.ui_configuration.getvalue("info", "help_file", "").strip()
+            # help_language = self.ui_configuration.getvalue("info", "lang", "en").strip().lower()
 
-            # Normalizza percorso relativo
-            help_path = Path(help_path_ini)
-            if not help_path.is_absolute():
-                help_path = Path("help") / help_path.name
+            if help_file:
+                help_path = Path(f'help/{help_file}').resolve()
+                if not help_path.exists():
+                    help_path = Path(f'help/help_eng.md').resolve()
+            else:
+                # Use English by default
+                help_path = Path(f'help/help_eng.md').resolve()
 
-            # Crea e mostra la finestra di help
-            self.help_window = HelpWindow(self, lang_code=lang, title=self.ui.get("help_title", "Help"))
+            if not help_path.exists():
+                messagebox.showerror("Error", f"Help file not found: '{help_path}'.")
+                return
+
+            self.help_window = HelpWindow(self, help_file=help_file, title=self.ui.get("help_title", "Help"))
+
         except Exception as e:
-            messagebox.showerror("Errore", f"Impossibile aprire la finestra di aiuto:\n{e}")
+            messagebox.showerror("Error", f"Unable to open help window:\n{e}")
 
-    def get_nearest_place_name(self, lat, lon, email=None, language="it"):
-        """
-        Do some Reverse-Geocoding.
-        Uses Nominatim to retrieve the name od the nearest city/village,
-        :return     Place name, Region, Country
-        """
+    # ---------------------------
+    # Reverse geocoding
+    # ---------------------------
+    def get_nearest_place_name(self, lat, lon, email=None, language="en"):
         errmessage = self.ui_configuration.getvalue('user_interface', 'geocoding_failed', 'Unknown locality')
         try:
-            params = {
-                "lat": lat,
-                "lon": lon,
-                "format": "json",
-                "zoom": 10,  # OSM Admin Level. See https://wiki.openstreetmap.org/wiki/Key:admin_level for more info
-                "addressdetails": 1,
-                "accept-language": language
-            }
-            headers = {
-                "User-Agent": f"CoordPickerApp ({email or 'anonymous'})"
-            }
+            params = {"lat": lat, "lon": lon, "format": "json", "zoom": 10, "addressdetails": 1, "accept-language": language}
+            headers = {"User-Agent": f"CoordPickerApp ({email or 'anonymous'})"}
             url = "https://nominatim.openstreetmap.org/reverse"
             response = requests.get(url, params=params, headers=headers, timeout=10)
             response.raise_for_status()
             data = response.json()
             address = data.get("address", {})
 
-            # Get main address parts
-            city = (
-                    address.get("city") or
-                    address.get("town") or
-                    address.get("village") or
-                    address.get("hamlet") or
-                    address.get("municipality")
-            )
-            region = (
-                    address.get("state") or
-                    address.get("region") or
-                    address.get("county")
-            )
+            city = (address.get("city") or address.get("town") or address.get("village") or address.get("hamlet") or address.get("municipality"))
+            region = (address.get("state") or address.get("region") or address.get("county"))
             country = address.get("country")
-
-            parts = [p for p in [city, region, country] if p]
+            parts = [p for p in (city, region, country) if p]
             if parts:
                 return ", ".join(parts)
             return errmessage
@@ -478,14 +512,13 @@ class _MapViewerBBox(tk.Tk):
             print(f"Reverse geocoding error: {e}")
             return errmessage
 
+    # ---------------------------
+    # Other utilities (icons, map init, zoom, search, etc.)
+    # ---------------------------
 
     def set_window_icon(self, window):
-        """
-        Use a custom Icon for the program windows.
-        Icon must be a .png or .ico file, in /resources dir.
-        """
         try:
-            window.iconbitmap(Path('resources') / globals.APP_ICON_ICO)  # formato Windows
+            window.iconbitmap(Path('resources') / globals.APP_ICON_ICO)
         except Exception:
             try:
                 icon = tk.PhotoImage(file=Path('resources') / globals.APP_ICON_PNG)
@@ -494,39 +527,39 @@ class _MapViewerBBox(tk.Tk):
                 print(f"Cannot set window icon: {e}")
 
     def init_map(self):
-        # Initialize the map after loading; Set default Zoom & Tile Server
-        default_key = self.selected_style.get()
-        server_url = self.tile_servers.get(default_key) or next(iter(self.tile_servers.values()))
-        self.map_widget.set_tile_server(server_url)
-        self.map_widget.set_position(*self.start_pos)
-        self.map_widget.set_zoom(self.start_zoom)
-        self.after(200, self.update_zoom_label)
-        self.after(1000, self.update_tile_estimate)
-        self.lift_overlays()
+        try:
+            default_key = self.selected_style.get()
+            server_url = self.tile_servers.get(default_key) or next(iter(self.tile_servers.values()))
+            self.map_widget.set_tile_server(server_url)
+            self.map_widget.set_position(*self.start_pos)
+            self.map_widget.set_zoom(self.start_zoom)
+            self.after(200, self.update_zoom_label)
+            self.after(1000, self.update_tile_estimate)
+            self.lift_overlays()
+        except Exception as e:
+            print(f"init_map error: {e}")
 
     def update_location_label(self):
-        """Updates the Place name label"""
         try:
             lat, lon = self.map_widget.get_position()
-            email = configuration.getvalue("tile_download", "osm_email", "")
-            lang = configuration.getvalue("general", "language", "it")
-            place = self.get_nearest_place_name(lat, lon, email,language=LANG_SHORT)
+            email = self.config.getvalue(TILE_DL_SECTION, "osm_email", "")
+            lang_code = self.ui_configuration.getvalue("info", "lang", "en")
+            place = self.get_nearest_place_name(lat, lon, email, language=lang_code)
             self.location_label.config(text=f"{place}")
         except Exception as e:
-            print(f"Errore aggiornamento località: {e}")
+            print(f"Location update error: {e}")
             self.location_label.config(text="...")
         finally:
-            # Also update current position in config.ini
-            configuration.setvalue('coord_picker', 'lastposition', f'{lat},{lon}')
-
+            try:
+                self.config.setvalue(CONFIG_SECTION, 'lastposition', f'{lat},{lon}')
+            except Exception:
+                pass
 
     def start_location_updates(self):
-        # Set auto-update for location label
         self.update_location_label()
         self.after(5000, self.start_location_updates)
 
     def lift_overlays(self):
-        # Keeps overlay text in foreground
         try:
             self.zoom_overlay.lift()
             self.osm_overlay.lift()
@@ -535,17 +568,13 @@ class _MapViewerBBox(tk.Tk):
         self.after(500, self.lift_overlays)
 
     def on_style_change(self, selected):
-        # Update the Tile Preview minimap if the main map is moved
         url = self.tile_servers.get(selected)
         if url:
             self.map_widget.set_tile_server(url)
         if getattr(self, "preview_window", None) and tk.Toplevel.winfo_exists(self.preview_window):
             self.show_preview()
 
-
-
     def increment_zoom(self):
-        # Increment zoom of downloaded tiles by 1 when the [ + ] button is clicked
         try:
             val = int(self.zoom_entry.get() or 15)
         except Exception:
@@ -557,7 +586,6 @@ class _MapViewerBBox(tk.Tk):
             self.show_preview()
 
     def decrement_zoom(self):
-        # Decrement zoom of downloaded tiles by 1 when the [ - ] button is clicked
         try:
             val = int(self.zoom_entry.get() or 15)
         except Exception:
@@ -570,66 +598,29 @@ class _MapViewerBBox(tk.Tk):
 
     def update_zoom_label(self):
         zoom_mappa = int(getattr(self.map_widget, "zoom", 15))
-        self.zoom_overlay.config(text=f"{self.ui['zoom_map_label']}: {zoom_mappa}")
-        # self.update_scale_bar()
+        self.zoom_overlay.config(text=f"{self.ui.get('zoom_map_label','Zoom')}: {zoom_mappa}")
         self.after(200, self.update_zoom_label)
 
-    # TODO - Implement this
-    # def update_scale_bar(self):
-    #     """Aggiorna lo scalimetro in base allo zoom attuale e alla latitudine."""
-    #     try:
-    #         zoom = self.map_widget.zoom
-    #         center = self.map_widget.get_position()
-    #         lat = center[0]
-    #
-    #         # Calcolo approssimativo della lunghezza in metri per pixel
-    #         meters_per_pixel = 156543.03392 * cos(lat * pi / 180) / (2 ** zoom)
-    #         bar_meters = meters_per_pixel * 100  # 100 px di lunghezza barra
-    #
-    #         # Arrotonda a valori significativi (50, 100, 200, 500, 1000, ecc.)
-    #         nice_values = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000]
-    #         display_value = min(nice_values, key=lambda x: abs(x - bar_meters))
-    #
-    #         # Aggiorna testo e ridimensiona
-    #         if display_value >= 1000:
-    #             text = f"{display_value / 1000:.0f} km"
-    #         else:
-    #             text = f"{display_value:.0f} m"
-    #
-    #         self.scale_bar.config(text=text)
-    #     except Exception:
-    #         pass
-
-
     def update_tile_estimate(self):
-        # Estimates the number of tiles to download to cover the window area with specified zoom level
         try:
             zoom_current = getattr(self.map_widget, "zoom", 15)
             zoom_target = int(self.zoom_entry.get())
             if not (1 <= zoom_target <= 22):
                 raise ValueError
-
             w = max(1, self.map_widget.winfo_width())
             h = max(1, self.map_widget.winfo_height())
-            # Number of horizontal/vertical tiles @ zoom_target factor
             info = self._get_return_info()
-            min_xy = lat_lon_tileid.latlon_to_tile(info[0][0], info[0][1], info[3])
-            max_xy = lat_lon_tileid.latlon_to_tile(info[1][0], info[1][1], info[3])
-
-            width_tiles = (w / 256.0) * (2 ** (zoom_target - zoom_current))     # TODO - adapt to support 512x512 tiles
-            height_tiles = (h / 256.0) * (2 ** (zoom_target - zoom_current))
+            min_xy = lat_lon_tileid.latlon_to_tile(info[0][0], info[0][1], int(info[3]))
+            max_xy = lat_lon_tileid.latlon_to_tile(info[1][0], info[1][1], int(info[3]))
             total_tiles = (max_xy[0] - min_xy[0] + 1) * (max_xy[1] - min_xy[1] + 1)
-
-            # Estimate total download size (average tile size is specified in globals.py)
             size_mb = (total_tiles * globals.tilesize_kb) / 1024.0
-            self.tiles_label.config(text=f"{self.ui['tiles_label']}: {total_tiles} (~{size_mb:.1f} MB)")
+            self.tiles_label.config(text=f"{self.ui.get('tiles_label','Tiles')}: {total_tiles} (~{size_mb:.1f} MB)")
         except Exception:
-            self.tiles_label.config(text=f"{self.ui['tiles_label']}: n/a")
+            self.tiles_label.config(text=f"{self.ui.get('tiles_label','Tiles')}: n/a")
         finally:
             self.after(1000, self.update_tile_estimate)
 
     def search_location(self):
-        # Uses Nominatim to search for a specified city or village
         query = self.search_entry.get().strip()
         if not query:
             return
@@ -639,7 +630,7 @@ class _MapViewerBBox(tk.Tk):
             resp = requests.get(url, params=params, headers={"User-Agent": "TkinterMapApp"}, timeout=10)
             data = resp.json()
             if not data:
-                messagebox.showinfo(self.ui["search_button"], self.ui["not_found_message"])
+                messagebox.showinfo(self.ui.get("search_button", "Search"), self.ui.get("not_found_message", "Not found"))
                 return
             if len(data) == 1:
                 lat, lon = float(data[0]["lat"]), float(data[0]["lon"])
@@ -647,26 +638,26 @@ class _MapViewerBBox(tk.Tk):
             else:
                 self.select_from_multiple(data)
         except Exception as e:
-            messagebox.showerror(self.ui["search_button"], f"{self.ui['error_message']}: {e}")
+            messagebox.showerror(self.ui.get("search_button", "Search"), f"{self.ui.get('error_message','Error')}: {e}")
 
     def open_settings(self):
-        """Open the Settings form"""
-        settings_form.SettingsForm (self, self.settings_ui, CONFIG_FILE)
+        """
+        Open SettingsForm, passing the shared configuration and a callback to apply runtime changes.
+        """
+        # pass shared config and on_change callback
+        settings_form.SettingsForm(self, self.settings_ui, config_path=CONFIG_FILE, shared_config=self.config, on_change_callback=self.apply_runtime_settings)
 
     def center_map(self, lat, lon):
-        # Center map view on specified coordinates
         cur_zoom = getattr(self.map_widget, "zoom", 15)
         self.map_widget.set_position(lat, lon)
         self.map_widget.set_zoom(cur_zoom)
 
     def select_from_multiple(self, results):
-        # Allows to select location from a list
         popup = tk.Toplevel(self)
-        popup.title(self.ui["select_location_title"])
+        popup.title(self.ui.get("select_location_title", "Select location"))
         popup.geometry("480x320")
         popup.minsize(480, 320)
-        tk.Label(popup, text=f'{self.ui["select_location_prompt"]}:', font=self.ui_font).pack(pady=5)
-
+        tk.Label(popup, text=f'{self.ui.get("select_location_prompt", "Select")}:', font=self.ui_font).pack(pady=5)
         listbox = tk.Listbox(popup, font=self.ui_font)
         for it in results:
             listbox.insert(tk.END, it.get("display_name", ""))
@@ -681,7 +672,7 @@ class _MapViewerBBox(tk.Tk):
             self.center_map(lat, lon)
             popup.destroy()
 
-        ttk.Button(popup, text=self.ui["select_button"], command=select_location, style="Custom.TButton").pack(pady=5)
+        ttk.Button(popup, text=self.ui.get("select_button", "Select"), command=select_location, style="Custom.TButton").pack(pady=5)
         listbox.bind("<Double-1>", lambda e: select_location())
 
     def on_ok(self):
@@ -691,8 +682,7 @@ class _MapViewerBBox(tk.Tk):
         self.destroy()
 
     def check_map_position(self):
-        """Checks if main map center has been moved"""
-        current_center=(0,0)
+        current_center = (0, 0)
         try:
             current_center = self.map_widget.get_position()
             if self.last_center != current_center:
@@ -703,16 +693,13 @@ class _MapViewerBBox(tk.Tk):
         if current_center != self._prev_position:
             print(f'Position: {current_center}')
             self._prev_position = current_center
-        # repeat every 500 ms
         self.after(500, self.check_map_position)
 
     def on_map_moved(self, coords):
-        """Update the Preview map."""
         if getattr(self, "preview_window", None) and tk.Toplevel.winfo_exists(self.preview_window):
             lat, lon = coords
             try:
                 self.tile_preview_minimap.set_position(lat, lon)
-                # self.update_scale_bar()
             except Exception:
                 pass
 
@@ -721,18 +708,15 @@ class _MapViewerBBox(tk.Tk):
         self.selection = None
         self.destroy()
 
-
     def on_close(self):
-        """Gestisce la chiusura della finestra principale (pulsante X)."""
-        # Salva la geometria e lo stato, ma non riscrive valori predefiniti
         try:
             self._save_settings()
         except Exception as e:
-            print(f"Errore salvataggio config su chiusura: {e}")
+            print(f"Error saving config on close: {e}")
         finally:
             self.destroy()
 
-    # mercator conversions
+    # Mercator conversions
     def latlon_to_pixels(self, lat, lon, zoom):
         lat_rad = math.radians(lat)
         map_size = 256.0 * (2.0 ** zoom)
@@ -756,4 +740,4 @@ def select_bbox():
 
 if __name__ == "__main__":
     result = select_bbox()
-    print("Risultato:", result)
+    print("Result:", result)
