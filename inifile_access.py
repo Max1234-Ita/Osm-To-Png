@@ -34,6 +34,9 @@ class IniManager:
             keys = list(dict(self.config[section]).keys())
         return keys
 
+    def getsection(self, section):
+        return self.config[section]
+
     def reload(self):
         """Rilegge il file INI da disco, aggiornando la cache."""
         self.config.read(self.filename, encoding='utf-8')

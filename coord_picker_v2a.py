@@ -24,6 +24,7 @@ import lat_lon_tileid
 import settings_form
 from inifile_access import IniManager
 from help_window import HelpWindow
+from utils import is_hex, is_email
 
 # Default UI filename used when config does not specify a language file
 DEFAULT_LANG_UI_FILE = "ui_english.ini"
@@ -676,10 +677,46 @@ class _MapViewerBBox(tk.Tk):
         listbox.bind("<Double-1>", lambda e: select_location())
 
     def on_ok(self):
-        selection = self._get_return_info()
-        self.selection = selection
-        self._save_settings(selection)
-        self.destroy()
+        """Conferma la selezione bbox e avvia il download, previa validazione dei parametri."""
+        try:
+            # Check if required email/API/additional info is provided
+            style_name = self.selected_style.get()
+            osm_email = self.config.getvalue("tile_download", "osm_email", "").strip()
+            api_key = self.config.getvalue("tile_download", "apikey", "").strip()
+
+            provider_info = globals.styles_info.get(style_name, None)
+            if isinstance(provider_info, list):
+                provider_name = provider_info[0].lower()
+            else:
+                raise NameError
+
+            if provider_name == "openstreetmap":
+                # Validate email for OSM tiles
+                if not is_email(osm_email):
+                    invalid_osm_email_msg = self.ui.get("invalid_osm_email", "Invalid Openstreetmap email.")
+                    messagebox.showwarning("", invalid_osm_email_msg)
+                    self.open_settings()
+                    return
+
+            elif provider_name == "thunderforest":
+                # Validate API key for Thunderforest tiles
+                if not api_key or not is_hex(api_key):
+                    invalid_api_key_msg = self.ui.get("invalid_thunderforest_key", "Invalid Thunderforest API key.")
+                    messagebox.showwarning("", invalid_api_key_msg)
+                    self.open_settings()
+                    return
+            else:
+                pass    # Case trap - for debug only
+
+            selection = self._get_return_info()
+            self.selection = selection
+            self._save_settings(selection)
+            self.destroy()
+
+        except NameError:
+            messagebox.showerror("#Error #", f"Provider info not found for map style {style_name}")
+        except Exception as e:
+            messagebox.showerror("Errore", f"Error in setting validation :\n{e}")
 
     def check_map_position(self):
         current_center = (0, 0)

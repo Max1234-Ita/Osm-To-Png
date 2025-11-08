@@ -43,8 +43,9 @@ ini = inifile_access.IniManager('config.ini')
 
 # ---------------------------------------------------------------------------------------------------------------
 # Launch the Coordinate picker to get the bbox of the wanted area
-user_selection = coord_picker_v2a.select_bbox()
-# user_selection = coord_picker_v3.select_bbox()
+user_selection = coord_picker_v2a.select_bbox()       # TODO - Coord_picker v2
+# user_selection = coord_picker_v3.select_bbox()          # TODO - Coord_picker_v3
+
     # Output from user_selection:
     #   [0]             ->  (lat, lon) of top-left bbox corner (tuple)
     #   [1]             ->  (lat, lon) of bottom-right bbox corner (tuple)
