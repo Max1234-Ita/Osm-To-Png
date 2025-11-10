@@ -404,6 +404,7 @@ class _MapViewerBBox(tk.Tk):
             popup.lift()
             popup.focus_force()
             self.preview_window = popup
+            self.set_window_icon(self.preview_window)
 
             mini_map = TkinterMapView(popup, width=preview_w, height=preview_h, corner_radius=0)
             mini_map.pack(fill="both", expand=True)

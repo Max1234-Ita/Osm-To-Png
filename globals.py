@@ -4,7 +4,7 @@
 # ----------------
 # Application info
 # ----------------
-APPVERSION = '2.1.1'
+APPVERSION = '2.2'
 APPNAME = 'OSM to PNG'
 APPINFO = 'By M. Mula, 2025'
 
