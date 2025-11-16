@@ -484,6 +484,7 @@ class _MapViewerBBox(tk.Tk):
                 return
 
             self.help_window = HelpWindow(self, help_file=help_file, title=self.ui.get("help_title", "Help"))
+            self.set_window_icon(self.help_window)
 
         except Exception as e:
             messagebox.showerror("Error", f"Unable to open help window:\n{e}")

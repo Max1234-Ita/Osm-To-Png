@@ -3,6 +3,7 @@
 help_window.py
 Manages the Help popup window, which displays a Markdown help file
 based on the currently selected language (e.g. help_en.md, help_it.md, etc.)
+Supports embedded images (from /help/images) converted to base64.
 """
 
 import tkinter as tk
@@ -10,9 +11,14 @@ from tkinter import messagebox
 from pathlib import Path
 import threading
 import markdown
-from tkhtmlview import HTMLLabel
+import base64
+import re
+from urllib.parse import urljoin
+from urllib.request import pathname2url
+from tkinterweb import HtmlFrame
 
 from inifile_access import IniManager
+
 
 class HelpWindow(tk.Toplevel):
     def __init__(self, master, help_file, title="Help"):
@@ -21,17 +27,14 @@ class HelpWindow(tk.Toplevel):
         :param help_file: Name of the help file, i.e. 'help_eng.md'
         :param title: window title
         """
-        self.helpfile = help_file
-
         super().__init__(master)
         self.master = master
-        # self.lang_code = lang_code.lower()
+        self.helpfile = help_file
+
         self.title(title)
         self.geometry("700x500")
         self.minsize(500, 400)
         self.attributes("-topmost", True)
-
-        cfg = IniManager('config.ini')
 
         # Window close behavior
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -40,20 +43,9 @@ class HelpWindow(tk.Toplevel):
         frame = tk.Frame(self, bg="white")
         frame.pack(fill="both", expand=True)
 
-        # Scrollbar + HTML area
-        scrollbar = tk.Scrollbar(frame)
-        scrollbar.pack(side="right", fill="y")
-
-        # HTML display area with left margin
-        self.html_view = HTMLLabel(
-            frame,
-            html="<h3>Loading help file...</h3>",
-            background="white",
-            font=("Arial", 12)
-        )
-        self.html_view.pack(side="left", fill="both", expand=True, padx=(20, 8), pady=8)
-        self.html_view.config(yscrollcommand=scrollbar.set)
-        scrollbar.config(command=self.html_view.yview)
+        # HTML display area with margin
+        self.html_view = HtmlFrame(frame, messages_enabled=False)
+        self.html_view.pack(fill="both", expand=True, padx=(20, 8), pady=8)
 
         # Bottom bar with Close (✖) button
         bottom_frame = tk.Frame(self, bg="#f0f0f0")
@@ -74,13 +66,12 @@ class HelpWindow(tk.Toplevel):
         # Load help file asynchronously
         threading.Thread(target=self._load_help_file, daemon=True).start()
 
+        self.after(1000, lambda: self.attributes("-topmost", False))
+
     # ----------------------------------------------------------------------
     def _load_help_file(self):
         """Loads the Markdown help file in a background thread."""
         try:
-            # Expected path: ./help/help_<lang>.md
-            # help_path = Path("help") / f"help_{self.lang_code}.md"
-            # help_path = help_path.resolve()
             help_path = Path(f"help/{self.helpfile}").resolve()
 
             # Fallback to English help file
@@ -90,39 +81,118 @@ class HelpWindow(tk.Toplevel):
             if not help_path.exists():
                 html_content = (
                     f"<h3>Help file not found.<br>"
-                    f"Please ensure the folder '/help' contains 'help_{self.lang_code}.md' or 'help_en.md'.</h3>"
+                    f"Please ensure the folder '/help' contains '{self.helpfile}' or 'help_en.md'.</h3>"
                 )
             else:
                 with open(help_path, "r", encoding="utf-8") as f:
                     md_content = f.read()
-                html_content = markdown.markdown(
+
+                # 🔹 Convert images to base64 inline
+                # def embed_images_as_base64(md_text, base_dir):
+                #     pattern = r'!\[([^\]]*)\]\(([^)]+)\)'
+                #
+                #     def replacer(match):
+                #         alt_text = match.group(1)
+                #         img_rel_path = match.group(2)
+                #         img_path = (base_dir / img_rel_path).resolve()
+                #         if not img_path.exists():
+                #             return f'<p><b>[Missing image: {img_rel_path}]</b></p>'
+                #         ext = img_path.suffix.lower()
+                #         mime = {
+                #             ".png": "image/png",
+                #             ".jpg": "image/jpeg",
+                #             ".jpeg": "image/jpeg",
+                #             ".gif": "image/gif",
+                #             ".svg": "image/svg+xml"
+                #         }.get(ext, "image/png")
+                #         with open(img_path, "rb") as img_file:
+                #             encoded = base64.b64encode(img_file.read()).decode("utf-8")
+                #         return f'<img src="data:{mime};base64,{encoded}" alt="{alt_text}" style="max-width:100%; margin:8px 0;">'
+                #
+                #     return re.sub(pattern, replacer, md_text)
+                # md_content = embed_images_as_base64(md_content, base_dir)
+
+                def embed_local_images(md_text, base_dir):
+                    pattern = r'!\[([^\]]*)\]\(([^)]+)\)'
+
+                    def replacer(match):
+                        alt_text = match.group(1)
+                        rel_path = match.group(2)
+                        img_path = (base_dir / rel_path).resolve()
+                        if not img_path.exists():
+                            return f'<p><b>[Missing image: {rel_path}]</b></p>'
+                        # Usa percorso file:// compatibile
+                        img_url = f"file:///{img_path.as_posix()}"
+                        return f'<img src="{img_url}" alt="{alt_text}" style="max-width:100%; margin:8px 0;">'
+
+                    return re.sub(pattern, replacer, md_text)
+
+                base_dir = help_path.parent
+                md_content = embed_local_images(md_content, base_dir)
+
+                # Convert Markdown to HTML
+                html_body = markdown.markdown(
                     md_content,
                     extensions=["tables", "fenced_code", "toc", "sane_lists"]
                 )
 
+                # Add basic styling
+                html_content = f"""
+                <html>
+                <head>
+                    <style>
+                        body {{
+                            font-family: Arial, sans-serif;
+                            font-size: 14px;
+                            color: #222;
+                            margin: 16px;
+                            line-height: 1.5;
+                        }}
+                        h1, h2, h3 {{ color: #004080; }}
+                        img {{ border: 1px solid #ccc; border-radius: 4px; }}
+                        code {{
+                            background: #f8f8f8;
+                            padding: 2px 4px;
+                            border-radius: 3px;
+                        }}
+                        pre {{
+                            background: #f0f0f0;
+                            padding: 8px;
+                            border-radius: 5px;
+                            overflow-x: auto;
+                        }}
+                    </style>
+                </head>
+                <body>{html_body}</body>
+                </html>
+                """
+
+            # Base path for relative resources
+            base_url = urljoin("file:", pathname2url(str(help_path.parent)) + "/")
+
             # Update the GUI safely from main thread
-            self.after(0, lambda: self._update_html(html_content))
+            self.after(0, lambda: self._update_html(html_content, base_url))
 
         except Exception as e:
             msg = f"Unable to read help file:\n{e}"
             print(msg)
-            self.after(0, lambda: messagebox.showerror("Error", msg))
-            self.after(0, lambda: self._update_html("<h3>Error loading help file.</h3>"))
+            self.after(0, lambda e=e: messagebox.showerror("Error", msg))
+            self.after(0, lambda: self._update_html("<h3>Error loading help file.</h3>", ""))
 
     # ----------------------------------------------------------------------
-    def _update_html(self, html_content):
+    def _update_html(self, html_content, base_url=""):
         """Updates HTML content inside the window (thread-safe)."""
         try:
             # Remove the loading label if still visible
             if hasattr(self, "loading_label") and self.loading_label.winfo_exists():
                 self.loading_label.destroy()
 
-            # Update HTML view
-            self.html_view.set_html(html_content)
+            # Display HTML with correct base URL
+            self.html_view.load_html(html_content, base_url=base_url)
 
         except Exception as e:
-            print(f"Error updating HTMLLabel: {e}")
-            self.after(0, lambda: messagebox.showerror("Error", str(e)))
+            print(f"Error updating HTML: {e}")
+            self.after(0, lambda e=e: messagebox.showerror("Error", str(e)))
 
     # ----------------------------------------------------------------------
     def _on_close(self):

@@ -6,8 +6,9 @@ Shows overall progress and allows to pause or abort the operation.
 import tkinter as tk
 from tkinter import ttk, messagebox
 from pathlib import Path
-import configparser
-import os
+# import configparser
+# import os
+import sys
 
 import globals
 from inifile_access import IniManager
@@ -89,7 +90,7 @@ class TileDownloadWindow:
         self.window.after(100, self.refresh_status)
 
     def refresh_status(self, tile_count=None):
-        """Aggiorna progressbar e testo leggendo DL_PROGRESS."""
+        """Update progress bar by polling DL_PROGRESS."""
         if self.stopflag:
             self.window.destroy()
 
@@ -100,12 +101,11 @@ class TileDownloadWindow:
                 except Exception:
                     percent = 0.0
 
-                percent = max(0.0, min(percent, 100.0))  # clamp
+                percent = max(0.0, min(percent, 100.0))
                 prog = self.progresstest.replace('{n_tiles}', str(tile_count))
                 prog = prog.replace('{tot_tiles}', str(self.total_tiles))
                 prog = prog.replace('{perc}', f'{percent}%')
                 self.progress["value"] = percent
-                # self.label_status.config(text=f"{self.windowtitle}: {str(percent)}%")
                 self.label_status.config(text=f"{prog}")
                 if self.pauseflag:
                     self.label_status.config(text=f"{self.windowtitle}: {str(percent)}% -- ⏸")
@@ -119,7 +119,6 @@ class TileDownloadWindow:
 
     def _set_window_icon(self, window):
         """
-        Use a custom Icon for the program windows.
         Icon must be a .png or .ico file, in /resources dir.
         """
         try:
@@ -132,7 +131,7 @@ class TileDownloadWindow:
                 print(f"Cannot set window icon: {e}")
 
     def toggle_pause(self):
-        """Attiva/disattiva la pausa."""
+        """Allow to pause/resume download."""
         self.pauseflag = not self.pauseflag
         new_text = self.resumetext if self.pauseflag else self.pausetext
         self.btn_pause.config(text=new_text)
@@ -170,25 +169,23 @@ class TileDownloadWindow:
             self.btn_pause.config(state="normal")
 
     def destroy(self):
-        """Chiude in modo sicuro la finestra e cancella after() attivi."""
-        # Cancella eventuali callback pendenti
+        """Close the window gracefully"""
         if self.after_id:
             try:
                 self.window.after_cancel(self.after_id)
             except tk.TclError:
                 pass
 
-        # Distrugge la finestra se esiste
+        # Destroy window, if exists
         if self.window and self.window.winfo_exists():
             try:
                 self.window.destroy()
             except tk.TclError:
                 pass
-
-        # Chiude la root se è stata creata internamente
         if self._own_root and self.root:
             try:
                 self.root.quit()
                 self.root.destroy()
             except tk.TclError:
                 pass
+        sys.exit(0)
