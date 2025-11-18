@@ -56,21 +56,11 @@ def numbers_to_list(num_list, val_type=int, sort=None, remove_duplicates=True):
                     else:
                         print(f"ERROR -invalid number of arguments.  Item: '{i}' ")
                         result = None
-
-            # print(result)
-
     if sort:
         if sort is True or str(sort).lower() in ['a', 'ascending', 'up']:
             result = sorted(result)
         elif sort.lower() in ['d', 'descending', 'down']:
             result = sorted(result, reverse=True)
-
     if remove_duplicates:
         result = list(dict.fromkeys(result))
-
-
     return result
-
-if __name__ == "__main__":
-    r = numbers_to_list(["3,6, 7,11-23, 32..43", 22, "29-33"], sort=True, remove_duplicates=True)
-    print(r)

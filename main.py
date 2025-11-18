@@ -2,6 +2,8 @@
 # TODO:
 #  - Implement tilesets from OsmAnd map?
 #  - Implement scale bar in coord_picker_v2a
+#  - In Help window, use the ssame font/size as the other windows
+#  - Add app icon to Save As window
 #  --------------------------------------------------------------------------------------------------------------------
 # DONE:
 #  - BUG - Help window is modal, make it Nonmodal so that the user can follow
